@@ -1,0 +1,42 @@
+{
+  "originHash" : "71815d8c31844d80a3a4465085a2ce1fcd57816851da257327d4d0715e3c33a9",
+  "pins" : [
+    {
+      "identity" : "agorainfra_ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/AgoraIO/AgoraInfra_iOS.git",
+      "state" : {
+        "revision" : "7803f7ebd8e7747bb76032f41c034d2ef7d9cb93",
+        "version" : "1.3.7"
+      }
+    },
+    {
+      "identity" : "agorartcengine_ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/AgoraIO/AgoraRtcEngine_iOS.git",
+      "state" : {
+        "revision" : "94a477c69f9ad730e2225f54948e87f9f4d77c24",
+        "version" : "4.6.2"
+      }
+    },
+    {
+      "identity" : "avatarkit-ios-release",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/spatius-ai/avatarkit-ios-release.git",
+      "state" : {
+        "revision" : "715418c3320486d1595c9a594a216beedbb72588",
+        "version" : "1.0.0-beta.1-rtc"
+      }
+    },
+    {
+      "identity" : "swift-protobuf",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-protobuf.git",
+      "state" : {
+        "revision" : "102a647b573f60f73afdce5613a51d71349fe507",
+        "version" : "1.30.0"
+      }
+    }
+  ],
+  "version" : 3
+}
