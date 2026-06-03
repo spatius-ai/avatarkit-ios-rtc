@@ -1,6 +1,6 @@
 Pod::Spec.new do |spec|
   spec.name         = "AvatarKitRTC"
-  spec.version      = "1.0.0-beta.1"
+  spec.version      = "1.0.0-beta.2"
   spec.summary      = "RTC adapter for AvatarKit"
   spec.description  = <<-DESC
                       AvatarKitRTC bridges audio/animation tracks from RTC providers
