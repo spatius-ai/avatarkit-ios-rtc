@@ -6,11 +6,13 @@ import AvatarKitRTC
 
 /// End-to-end Agora RTC playback test.
 ///
-/// Talks to the AvatarKit backend whose base URL the user supplies at runtime,
-/// fetches an Agora token + channel from `{baseURL}/api/agora-token`, then
-/// hands the realtime animation stream off to `AvatarPlayer`.
+/// Connects directly to an Agora channel using credentials supplied through
+/// the Config sheet (App ID / channel / token / uid). Useful when the Agora
+/// integrator wants to point the demo at their own channel without going
+/// through the AvatarKit backend's token issuer.
 struct RTCTestView: View {
     @StateObject private var vm = RTCTestViewModel()
+    @State private var showConfig = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,12 +23,6 @@ struct RTCTestView: View {
             Divider()
 
             statusSection
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-
-            Divider()
-
-            configSection
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
 
@@ -46,6 +42,18 @@ struct RTCTestView: View {
         }
         .navigationTitle("RTC Test (Agora)")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showConfig = true
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+            }
+        }
+        .sheet(isPresented: $showConfig) {
+            ConfigSheet(vm: vm)
+        }
         .onAppear { vm.initializeSDK() }
         .onDisappear {
             // Detached so the cleanup doesn't get cancelled when the view
@@ -71,8 +79,13 @@ struct RTCTestView: View {
                 VStack(spacing: 12) {
                     Image(systemName: "person.crop.circle.badge.questionmark")
                         .font(.system(size: 50)).foregroundStyle(.gray)
-                    Text("Enter an Avatar ID, then Load Avatar")
+                    Text(vm.appID.trimmingCharacters(in: .whitespaces).isEmpty
+                         || vm.avatarID.trimmingCharacters(in: .whitespaces).isEmpty
+                         ? "Tap the gear icon to fill App ID + Avatar ID"
+                         : "Tap Load Avatar")
                         .foregroundStyle(.gray).font(.caption)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
                 }
             }
         }
@@ -103,26 +116,6 @@ struct RTCTestView: View {
         }
     }
 
-    private var configSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            TextField("Backend base URL", text: $vm.baseURL)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .font(.caption)
-                .textFieldStyle(.roundedBorder)
-            TextField("App ID", text: $vm.appID)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .font(.caption)
-                .textFieldStyle(.roundedBorder)
-            TextField("Avatar ID", text: $vm.avatarID)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .font(.caption)
-                .textFieldStyle(.roundedBorder)
-        }
-    }
-
     private var controlsSection: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
@@ -134,7 +127,6 @@ struct RTCTestView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(vm.isLoadingAvatar
-                          || vm.baseURL.trimmingCharacters(in: .whitespaces).isEmpty
                           || vm.appID.trimmingCharacters(in: .whitespaces).isEmpty
                           || vm.avatarID.trimmingCharacters(in: .whitespaces).isEmpty)
 
@@ -193,12 +185,16 @@ struct RTCTestView: View {
 
 @MainActor
 final class RTCTestViewModel: ObservableObject {
-    // Persisted configuration
-    @AppStorage("rtc_base_url") var baseURL: String = ""
-    @AppStorage("rtc_app_id")   var appID: String = ""
+    // AvatarKit credentials
+    @AppStorage("rtc_app_id")    var appID: String = ""
     @AppStorage("rtc_avatar_id") var avatarID: String = ""
 
-    private let agentUID: UInt = 1000
+    // Agora credentials — the SDK has no token-fetch logic, the integrator
+    // (or their backend) is responsible for supplying all four values.
+    @AppStorage("rtc_agora_app_id")  var agoraAppID: String = ""
+    @AppStorage("rtc_agora_channel") var agoraChannel: String = ""
+    @AppStorage("rtc_agora_token")   var agoraToken: String = ""
+    @AppStorage("rtc_agora_uid")     var agoraUID: String = ""
 
     @Published var avatar: Avatar?
     @Published var isLoadingAvatar = false
@@ -293,9 +289,19 @@ final class RTCTestViewModel: ObservableObject {
             print("[RTCTest] mic permission denied")
         }
 
+        let trimmedAgoraApp = agoraAppID.trimmingCharacters(in: .whitespaces)
+        let trimmedChannel  = agoraChannel.trimmingCharacters(in: .whitespaces)
+        let trimmedToken    = agoraToken.trimmingCharacters(in: .whitespaces)
+        let parsedUID       = UInt(agoraUID.trimmingCharacters(in: .whitespaces)) ?? 0
+
+        guard !trimmedAgoraApp.isEmpty, !trimmedChannel.isEmpty else {
+            lastError = "Agora App ID and Channel are required (open Config)"
+            updateConnectionState(.failed)
+            return
+        }
+
         do {
-            let token = try await fetchAgoraToken(avatarID: id)
-            print("[RTCTest] got token, channel=\(token.channelName) uid=\(token.uid)")
+            print("[RTCTest] connecting channel=\(trimmedChannel) uid=\(parsedUID)")
             let provider = AgoraProvider()
             let player = AvatarPlayer(
                 provider: provider,
@@ -309,10 +315,10 @@ final class RTCTestViewModel: ObservableObject {
             self.player = player
 
             try await player.connect(AgoraConnectionConfig(
-                appId: token.appId,
-                channel: token.channelName,
-                token: token.token,
-                uid: token.uid
+                appId: trimmedAgoraApp,
+                channel: trimmedChannel,
+                token: trimmedToken.isEmpty ? nil : trimmedToken,
+                uid: parsedUID
             ))
             isConnected = true
             updateConnectionState(.connected)
@@ -392,38 +398,6 @@ final class RTCTestViewModel: ObservableObject {
         print("[RTCTest] ViewModel deinit (hasPlayer=\(player != nil))")
     }
 
-    // MARK: - Backend
-
-    private struct AgoraTokenResponse: Decodable {
-        let appId: String
-        let channelName: String
-        let token: String
-        let uid: UInt
-    }
-
-    private func fetchAgoraToken(avatarID: String) async throws -> AgoraTokenResponse {
-        guard let url = URL(string: baseURL.trimmingCharacters(in: .whitespaces) + "/api/agora-token") else {
-            throw NSError(domain: "RTCTest", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid base URL"])
-        }
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let body: [String: Any] = [
-            "participantName": "ios-demo",
-            "avatarId": avatarID,
-        ]
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await URLSession.shared.data(for: req)
-        guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
-            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            let msg = String(data: data, encoding: .utf8) ?? "unknown"
-            throw NSError(domain: "RTCTest", code: code,
-                          userInfo: [NSLocalizedDescriptionKey: "HTTP \(code): \(msg)"])
-        }
-        return try JSONDecoder().decode(AgoraTokenResponse.self, from: data)
-    }
-
     // MARK: - Player events
 
     private func handlePlayerEvent(_ event: AvatarPlayerEvent) {
@@ -459,6 +433,62 @@ final class RTCTestViewModel: ObservableObject {
         case .failed:
             connectionStateText = "Failed"
             connectionStateColor = .red
+        }
+    }
+}
+
+// MARK: - Config sheet
+
+private struct ConfigSheet: View {
+    @ObservedObject var vm: RTCTestViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("AvatarKit") {
+                    LabeledField(title: "App ID", text: $vm.appID)
+                    LabeledField(title: "Avatar ID", text: $vm.avatarID)
+                }
+                Section {
+                    LabeledField(title: "App ID", text: $vm.agoraAppID)
+                    LabeledField(title: "Channel", text: $vm.agoraChannel)
+                    LabeledField(title: "Token", text: $vm.agoraToken)
+                    LabeledField(title: "UID", text: $vm.agoraUID, keyboardType: .numberPad)
+                } header: {
+                    Text("Agora")
+                } footer: {
+                    Text("Leave Token empty for App-ID-only channels; UID defaults to 0.")
+                        .font(.caption2)
+                }
+            }
+            .navigationTitle("Config")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct LabeledField: View {
+    let title: String
+    @Binding var text: String
+    var keyboardType: UIKeyboardType = .default
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .frame(width: 90, alignment: .leading)
+                .foregroundStyle(.secondary)
+                .font(.caption)
+            TextField(title, text: $text)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(keyboardType)
+                .font(.callout)
         }
     }
 }

@@ -342,17 +342,17 @@ enum TestCases {
             timeoutMs: 8_000
         ) { ctx in
             // Smoke check: after we've been connected and idling for a while,
-            // generateTransitionFromProtobuf should not throw for an empty
+            // generateTransitionToFrame should not throw for an empty
             // payload (it should error out, not crash).
             let empty = Data()
             var rejected = false
             do {
-                _ = try await ctx.avatarView.generateTransitionFromProtobuf(empty, frameCount: 8)
+                _ = try await ctx.avatarView.generateTransitionToFrame(empty, frameCount: 8)
             } catch {
                 rejected = true
                 ctx.log("Empty transition payload rejected: \(error.localizedDescription)")
             }
-            try ctx.assert(rejected, "generateTransitionFromProtobuf should reject empty payload")
+            try ctx.assert(rejected, "generateTransitionToFrame should reject empty payload")
         },
     ]
 

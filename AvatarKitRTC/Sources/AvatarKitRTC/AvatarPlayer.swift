@@ -43,6 +43,9 @@ public enum AvatarPlayerEvent: Sendable {
 /// await player.disconnect()
 /// ```
 @MainActor public final class AvatarPlayer {
+    private static let DISCONNECT_TRANSITION_FRAMES = 12
+    private static let DISCONNECT_TRANSITION_FRAME_INTERVAL_NS: UInt64 = 40_000_000
+
     private let logger = RTCLogger("AvatarPlayer")
     private let provider: RTCProvider
     private let avatarView: AvatarView
@@ -167,6 +170,17 @@ public enum AvatarPlayerEvent: Sendable {
         let summary = animationHandler.getSessionSummary()
         await provider.disconnect()
         animationHandler.dispose()
+        // Soft transition back to idle then hand the renderer back to
+        // AvatarKit. Mirrors AnimationHandler's server-driven end-transition
+        // path so disconnect feels the same as a normal conversation end.
+        let transitionFrames = await avatarView.generateTransitionToIdle(
+            frameCount: Self.DISCONNECT_TRANSITION_FRAMES
+        )
+        for frame in transitionFrames {
+            await avatarView.renderFrame(frame, startIdle: false)
+            try? await Task.sleep(nanoseconds: Self.DISCONNECT_TRANSITION_FRAME_INTERVAL_NS)
+        }
+        await avatarView.renderFrame(nil, startIdle: true)
         _isConnected = false
 
         let sessionDuration = sessionStartTime > 0 ? Int(nowMs() - sessionStartTime) : 0
