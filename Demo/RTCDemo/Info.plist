@@ -8,5 +8,7 @@
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>AvatarKit RTC demo uses the microphone to talk to the AI agent.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
