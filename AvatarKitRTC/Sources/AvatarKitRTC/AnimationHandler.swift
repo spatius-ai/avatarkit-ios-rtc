@@ -8,7 +8,8 @@ import AvatarKit
 @MainActor protocol AvatarRendererAdapter: AnyObject {
     func renderFromProtobuf(_ data: Data) async
     func renderFrame(_ frame: Frame?, startIdle: Bool) async
-    func generateTransitionFromProtobuf(_ data: Data, frameCount: Int) async -> [Frame]
+    func generateTransitionToFrame(_ data: Data, frameCount: Int) async -> [Frame]
+    func generateTransitionToIdle(frameCount: Int) async -> [Frame]
     func isReady() -> Bool
 }
 
@@ -249,7 +250,7 @@ public struct AnimationSessionSummary: Sendable {
 
         Task { @MainActor [weak self, renderer] in
             guard let self else { return }
-            let transitionFrames = await renderer.generateTransitionFromProtobuf(protobufData, frameCount: frames)
+            let transitionFrames = await renderer.generateTransitionToFrame(protobufData, frameCount: frames)
             self.logger.info("Generated \(transitionFrames.count) transition frames")
             self.isPlayingTransition = true
             self.isTransitioningToIdle = false
@@ -260,7 +261,10 @@ public struct AnimationSessionSummary: Sendable {
         }
     }
 
-    /// Handle the speaking-to-idle transition packet.
+    /// Handle the speaking-to-idle transition packet. `protobufData` is the
+    /// SEI payload but its contents are no longer needed — the SDK computes
+    /// the transition entirely from its internal `currentFrame` to the idle
+    /// start. Kept in the signature for SEI parser compatibility.
     func handleTransitionToIdle(_ protobufData: Data, frameCount: Int?) {
         if !isInSession {
             logger.info("Ignoring transition end packet with no active session")
@@ -280,17 +284,16 @@ public struct AnimationSessionSummary: Sendable {
         flushBuffer()
 
         let frames = frameCount ?? config.transitionEndFrameCount
-        logger.info("Generating \(frames) reverse transition frames to idle")
+        logger.info("Generating \(frames) transition frames to idle")
         isGeneratingEndTransition = true
 
         Task { @MainActor [weak self, renderer] in
             guard let self else { return }
-            let transitionFrames = await renderer.generateTransitionFromProtobuf(protobufData, frameCount: frames)
-            self.logger.info("Generated \(transitionFrames.count) transition frames, reversing for playback")
-            let reversed = Array(transitionFrames.reversed())
+            let transitionFrames = await renderer.generateTransitionToIdle(frameCount: frames)
+            self.logger.info("Generated \(transitionFrames.count) transition frames")
             self.isPlayingTransition = true
             self.isTransitioningToIdle = true
-            self.transitionFrames = reversed
+            self.transitionFrames = transitionFrames
             self.transitionFrameIndex = 0
             self.playTransitionFrame()
             self.isGeneratingEndTransition = false

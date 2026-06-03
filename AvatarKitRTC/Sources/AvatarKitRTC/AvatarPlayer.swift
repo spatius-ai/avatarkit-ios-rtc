@@ -472,13 +472,18 @@ public enum AvatarPlayerError: LocalizedError {
         await view?.renderFrame(frame, startIdle: startIdle)
     }
 
-    func generateTransitionFromProtobuf(_ data: Data, frameCount: Int) async -> [Frame] {
+    func generateTransitionToFrame(_ data: Data, frameCount: Int) async -> [Frame] {
         guard let view else { return [] }
         do {
-            return try await view.generateTransitionFromProtobuf(data, frameCount: frameCount)
+            return try await view.generateTransitionToFrame(data, frameCount: frameCount)
         } catch {
             return []
         }
+    }
+
+    func generateTransitionToIdle(frameCount: Int) async -> [Frame] {
+        guard let view else { return [] }
+        return await view.generateTransitionToIdle(frameCount: frameCount)
     }
 
     func isReady() -> Bool {
