@@ -6,6 +6,8 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>This app does not use the camera; the description is required because the RTC SDK links against camera APIs.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>AvatarKit RTC demo uses the microphone to talk to the AI agent.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>

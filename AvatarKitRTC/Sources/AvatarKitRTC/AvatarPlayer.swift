@@ -222,7 +222,15 @@ public enum AvatarPlayerEvent: Sendable {
 
     public func publishAudio() async throws {
         guard _isConnected else { throw AvatarPlayerError.notConnected }
-        try await provider.publishAudioTrack()
+        do {
+            try await provider.publishAudioTrack()
+        } catch {
+            Telemetry.event("rtc_audio_publish_failed", level: .error, [
+                "provider": providerName,
+                "description": String(describing: error)
+            ])
+            throw error
+        }
         hasPublishedAudio = true
     }
 
@@ -240,7 +248,15 @@ public enum AvatarPlayerEvent: Sendable {
     /// pickup from the device's microphone.
     public func publishExternalPCM(sampleRate: Int = 16000, channels: Int = 1) async throws {
         guard _isConnected else { throw AvatarPlayerError.notConnected }
-        try await provider.publishExternalPCM(sampleRate: sampleRate, channels: channels)
+        do {
+            try await provider.publishExternalPCM(sampleRate: sampleRate, channels: channels)
+        } catch {
+            Telemetry.event("rtc_audio_publish_failed", level: .error, [
+                "provider": providerName,
+                "description": String(describing: error)
+            ])
+            throw error
+        }
         hasPublishedAudio = true
     }
 
