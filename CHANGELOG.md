@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.0-beta.3] — 2026-06-09
+
+### Added
+- `AvatarPlayer.publishAudio()` / `publishExternalPCM(sampleRate:channels:)` now
+  emit an `rtc_audio_publish_failed` telemetry event (provider + error
+  description) when publishing fails, aligning the telemetry surface with the
+  web RTC SDK.
+
+### Changed
+- Demo `Info.plist`: added `NSCameraUsageDescription` (the RTC SDK links against
+  camera APIs even though the demo does not use the camera).
+
+### Compatibility
+- Requires AvatarKit iOS SDK v1.1.0-beta.1 or later.
+
 ## [1.0.0-beta.2] — 2026-06-03
 
 ### Changed
