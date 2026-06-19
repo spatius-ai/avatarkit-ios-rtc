@@ -97,6 +97,8 @@ final class MockRTCProvider: RTCProvider {
         eventHandler = handler
     }
 
+    func getNativeClient() -> Any? { nil }
+
     // MARK: - Injection API (test-only)
 
     /// Push an idle marker — the SDK should switch back to idle if it was speaking.

@@ -396,6 +396,8 @@ final class HookableProvider: RTCProvider {
         underlying.setEventHandler(handler)
     }
 
+    func getNativeClient() -> Any? { underlying.getNativeClient() }
+
     fileprivate func tickAnimationFrame() {
         animationFrameCount += 1
         onAnimationFrame?()
