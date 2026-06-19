@@ -16,7 +16,7 @@ import AvatarKit
 /// Configuration for AnimationHandler. Matches web's AnimationHandlerConfig.
 struct AnimationHandlerConfig {
     var transitionStartFrameCount: Int = 8
-    var transitionEndFrameCount: Int = 12
+    var transitionEndFrameCount: Int = 20
     var enableJitterBuffer: Bool = true
     /// Max delay (ms) a frame can sit in the jitter buffer before being rendered.
     /// Also controls how long to wait for a missing frame before skipping ahead.
@@ -224,6 +224,17 @@ public struct AnimationSessionSummary: Sendable {
     /// Handle the idle-to-speaking transition packet.
     func handleTransitionData(_ protobufData: Data, frameCount: Int?) {
         logger.info("Start transition packet received bytes=\(protobufData.count), requestedFrames=\(frameCount ?? config.transitionStartFrameCount), hasHandledStart=\(hasHandledTransitionStart), isInSession=\(isInSession), isPlayingTransition=\(isPlayingTransition), isGeneratingStart=\(isGeneratingStartTransition), lastRenderedSeq=\(lastRenderedFrameSeq), bufferState=\(bufferStateName), buffered=\(frameBuffer.count)")
+
+        // A start-transition packet that arrives while we're still playing the
+        // previous conversation's end transition (speak→idle) is the next
+        // conversation beginning. Don't drop it as "late": stop the end
+        // transition and reset session tracking so this start transition plays
+        // normally. generateTransitionToFrame anchors on the current rendered
+        // frame, so it smoothly continues from wherever the end transition was.
+        if isPlayingTransition && isTransitioningToIdle {
+            stopTransition()
+            resetTracking()
+        }
 
         if hasHandledTransitionStart { return }
         if isPlayingTransition && !isTransitioningToIdle { return }
@@ -675,6 +686,15 @@ public struct AnimationSessionSummary: Sendable {
             logger.info("Transition playback complete")
             if wasTransitioningToIdle {
                 logger.info("Starting idle animation after transition")
+                // Reset session tracking before going idle. Otherwise the next
+                // conversation's start-transition packet — which arrives before the
+                // first animation frame (and thus before resetTracking runs) — hits
+                // the "playback already started" guard (isInSession + lastRenderedSeq)
+                // and gets dropped, leaving the next conversation with no start
+                // transition (visible jump on the opening frame).
+                isInSession = false
+                lastRenderedFrameSeq = -1
+                hasHandledTransitionStart = false
                 Task { @MainActor [renderer] in await renderer.renderFrame(nil, startIdle: true) }
                 logRenderedFrame(source: "idle", seq: nil, isRecovered: false)
             }

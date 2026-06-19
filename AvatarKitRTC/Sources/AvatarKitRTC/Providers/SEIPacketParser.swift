@@ -32,7 +32,7 @@ import Compression
     private static let headerSize = 5
     private static let frameSeqSize = 4
     private static let defaultTransitionStartFrames = 8
-    private static let defaultTransitionEndFrames = 12
+    private static let defaultTransitionEndFrames = 20
 
     private weak var callbacks: AnimationTrackCallbacks?
 
