@@ -17,6 +17,9 @@ import AvatarKitAgoraBridge
 
     private let logger = RTCLogger("AgoraProvider")
     private var engine: AgoraRtcEngineKit?
+
+    /// The native Agora `AgoraRtcEngineKit`, or nil if not connected.
+    public override func getNativeClient() -> Any? { engine }
     private var observer: AKAgoraEncodedFrameObserver?
     private let parser = SEIPacketParser()
     private var animationCallbacks: AnimationTrackCallbacks?

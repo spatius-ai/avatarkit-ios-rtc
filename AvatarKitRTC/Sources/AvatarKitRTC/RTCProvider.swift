@@ -96,6 +96,12 @@ public enum RTCProviderEvent: Sendable {
 
     /// Listen to provider lifecycle events.
     func setEventHandler(_ handler: @escaping @MainActor (RTCProviderEvent) -> Void)
+
+    /// The underlying native RTC client, or nil if not connected — e.g.
+    /// `AgoraProvider` returns its `AgoraRtcEngineKit`. Lets advanced callers
+    /// reach provider-specific features not exposed through the unified API.
+    /// Aligned with Android / web `getNativeClient()`.
+    func getNativeClient() -> Any?
 }
 
 /// Common boilerplate shared between provider implementations.
@@ -117,6 +123,9 @@ public enum RTCProviderEvent: Sendable {
     public func setEventHandler(_ handler: @escaping @MainActor (RTCProviderEvent) -> Void) {
         self.handler = handler
     }
+
+    /// Default: no native client exposed. Providers override to return theirs.
+    open func getNativeClient() -> Any? { nil }
 
     open func connect(_ config: RTCConnectionConfig) async throws {
         fatalError("subclass must override connect")

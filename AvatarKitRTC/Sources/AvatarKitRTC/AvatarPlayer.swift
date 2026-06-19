@@ -308,6 +308,12 @@ public enum AvatarPlayerEvent: Sendable {
         return subscribers.count - 1
     }
 
+    /// The underlying native RTC client for advanced use cases not covered by
+    /// the unified API — Agora returns its `AgoraRtcEngineKit`. Returns nil if
+    /// not connected. Cast to the concrete type to use provider-specific
+    /// features. Aligned with Android / web `getNativeClient()`.
+    public func getNativeClient() -> Any? { provider.getNativeClient() }
+
     // MARK: - Private wiring
 
     private func setupAnimationCallbacks() async {
