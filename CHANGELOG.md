@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.0.0-beta.4] — 2026-06-20
+
+### Added
+- `AvatarPlayer.getNativeClient()` — exposes the underlying native RTC client
+  (Agora's `AgoraRtcEngineKit`) for advanced use cases not covered by the
+  unified API. Returns `nil` when not connected. Aligns with Android / web.
+
+### Fixed
+- **Missing start transition when conversations overlap** — if a new
+  conversation's start transition arrives while the previous conversation's
+  speak→idle end transition is still playing (server cadence / network jitter
+  overlapping conversations), the end transition is now stopped and session
+  tracking reset so the start transition plays normally, anchored on the
+  current frame for a smooth continuation. Previously it was dropped as a
+  "late" packet, causing a visible jump on the opening frame.
+
+### Changed
+- Default end-transition length increased from 12 to 20 frames to match server
+  cadence, aligning with web / Android.
+
 ## [1.0.0-beta.3] — 2026-06-09
 
 ### Added
