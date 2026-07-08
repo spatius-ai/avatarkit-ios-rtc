@@ -26,5 +26,5 @@ Pod::Spec.new do |spec|
   spec.dependency "AvatarKitAgoraBridge", "1.0.0-beta.5"
   spec.dependency "AvatarKit", "1.3.0"
   spec.dependency "SwiftProtobuf", "1.30.0"
-  spec.dependency "AgoraRtcEngine_iOS", "4.6.2"
+  spec.dependency "AgoraRtcEngine_Special_iOS", "4.5.2.191.BASIC"
 end

@@ -18,7 +18,7 @@ Pod::Spec.new do |spec|
   spec.source_files        = "AvatarKitRTC/Sources/AvatarKitAgoraBridge/**/*.{h,mm}"
   spec.public_header_files  = "AvatarKitRTC/Sources/AvatarKitAgoraBridge/include/*.h"
   spec.requires_arc         = true
-  spec.dependency "AgoraRtcEngine_iOS", "4.6.2"
+  spec.dependency "AgoraRtcEngine_Special_iOS", "4.5.2.191.BASIC"
   spec.pod_target_xcconfig  = {
     "CLANG_CXX_LANGUAGE_STANDARD" => "c++17",
     "CLANG_CXX_LIBRARY"           => "libc++"

@@ -1,4 +1,10 @@
-# AvatarKitRTC (iOS)
+# AvatarKitRTC (iOS) — Special 特供分支（声网 4.5.2）
+
+> ⚠️ **本分支为特供构建**，适配声网定制版 **`AgoraRtcEngine_Special_iOS 4.5.2.191.BASIC`**（与 `main` 分支的公版 `AgoraRtcEngine_iOS 4.6.2` 不同）。
+>
+> - 差异点：`AvatarKitAgoraBridge` 的 `IVideoEncodedFrameObserver::onEncodedVideoFrameReceived` 去掉了公版才有的 `channelId` 参数；podspec 声网依赖改为 Special 版。
+> - **不支持 Swift Package Manager**：Special 版声网无 SPM 分发，且 bridge 已按 Special 签名编写，用公版声网的 `Package.swift` 无法编译。本分支仅通过 **CocoaPods** 或 **预编译 XCFramework** 交付。
+> - 公版（走 SPM / 公版 CocoaPods）请用 `main` 分支。
 
 RTC adapter for [AvatarKit](https://github.com/spatius-ai/avatarkit-ios) on iOS — bridges animation tracks from RTC providers into AvatarKit's rendering pipeline.
 
