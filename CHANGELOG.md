@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0-beta.5] — 2026-07-08
+
+### Added
+- CocoaPods 集成支持：新增 `AvatarKitRTC` 与 `AvatarKitAgoraBridge` 两个 podspec，
+  可通过 CocoaPods 引入（此前仅支持 Swift Package Manager）。依赖 `AvatarKit`
+  与 `AgoraRtcEngine_iOS` 的 CocoaPods 包。
+
 ## [1.0.0-beta.4] — 2026-06-20
 
 ### Added
