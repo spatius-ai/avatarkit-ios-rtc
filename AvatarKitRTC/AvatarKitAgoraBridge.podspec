@@ -13,8 +13,10 @@ Pod::Spec.new do |spec|
   spec.platform     = :ios, "16.0"
   spec.source       = { :git => "https://github.com/spatius-ai/avatarkit-ios-rtc.git", :tag => "v#{spec.version}" }
 
-  spec.source_files        = "Sources/AvatarKitAgoraBridge/**/*.{h,mm}"
-  spec.public_header_files  = "Sources/AvatarKitAgoraBridge/include/*.h"
+  # Paths are relative to the repo root (what `:git` checks out), so they
+  # include the `AvatarKitRTC/` package subdirectory prefix.
+  spec.source_files        = "AvatarKitRTC/Sources/AvatarKitAgoraBridge/**/*.{h,mm}"
+  spec.public_header_files  = "AvatarKitRTC/Sources/AvatarKitAgoraBridge/include/*.h"
   spec.requires_arc         = true
   spec.dependency "AgoraRtcEngine_iOS", "4.6.2"
   spec.pod_target_xcconfig  = {

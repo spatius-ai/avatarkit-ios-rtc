@@ -16,7 +16,9 @@ Pod::Spec.new do |spec|
   spec.source       = { :git => "https://github.com/spatius-ai/avatarkit-ios-rtc.git", :tag => "v#{spec.version}" }
 
   # Swift facade: public API + Agora provider + SEI parsing.
-  spec.source_files = "Sources/AvatarKitRTC/**/*.swift"
+  # Paths are relative to the repo root (what `:git` checks out), so they
+  # include the `AvatarKitRTC/` package subdirectory prefix.
+  spec.source_files = "AvatarKitRTC/Sources/AvatarKitRTC/**/*.swift"
 
   # AvatarKitAgoraBridge is a separate pod (not a subspec) so it compiles as its
   # own Clang module — the Swift sources do `import AvatarKitAgoraBridge`, which
