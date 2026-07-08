@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.0-beta.5] — 2026-07-08
+
+### Added
+- CocoaPods integration support: added two podspecs, `AvatarKitRTC` and
+  `AvatarKitAgoraBridge`, so the SDK can be pulled in via CocoaPods (previously
+  Swift Package Manager only). Depends on the `AvatarKit` and
+  `AgoraRtcEngine_iOS` CocoaPods packages.
+
 ## [1.0.0-beta.4] — 2026-06-20
 
 ### Added
