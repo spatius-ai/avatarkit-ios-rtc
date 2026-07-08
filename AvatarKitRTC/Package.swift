@@ -12,9 +12,9 @@ let package = Package(
         ),
     ],
     dependencies: [
-        // AvatarKit binary distribution. Pinned to the prerelease tag because
-        // SPM SemVer range resolution otherwise skips pre-release versions.
-        .package(url: "https://github.com/spatius-ai/avatarkit-ios-release.git", exact: "1.1.0-beta.1"),
+        // AvatarKit binary distribution. Pinned exactly to keep SPM and the
+        // CocoaPods podspec on the same main-SDK version.
+        .package(url: "https://github.com/spatius-ai/avatarkit-ios-release.git", exact: "1.3.0"),
         .package(url: "https://github.com/apple/swift-protobuf.git", exact: "1.30.0"),
         .package(url: "https://github.com/AgoraIO/AgoraRtcEngine_iOS.git", exact: "4.6.2"),
     ],

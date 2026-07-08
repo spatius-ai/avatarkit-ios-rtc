@@ -1,5 +1,5 @@
 {
-  "originHash" : "35c8137524cd2e4473b0875a2ac21363abfbea208ed5f01bf3b2187c7fd3db96",
+  "originHash" : "447f6aa2556a7a7dac6ba6c7dedb79513b45992c8897362e68c8a0e7ebe67527",
   "pins" : [
     {
       "identity" : "agorainfra_ios",
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/spatius-ai/avatarkit-ios-release.git",
       "state" : {
-        "revision" : "8af95a0355b219df099a72950193cae475abceb4",
-        "version" : "1.1.0-beta.1"
+        "revision" : "61bb9dac2d2b7d56c8be61802ff77da7c3804c99",
+        "version" : "1.3.0"
       }
     },
     {
