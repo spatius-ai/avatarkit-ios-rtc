@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.0-beta.6] — 2026-07-09
+
+### Changed
+
+- Downgraded the Agora SDK (`AgoraRtcEngine_iOS`) dependency from `4.6.2` to
+  `4.5.2`. The encoded-frame callback interface was adapted to the Agora 4.5.x
+  signature accordingly.
+
 ## [1.0.0-beta.5] — 2026-07-08
 
 ### Added
