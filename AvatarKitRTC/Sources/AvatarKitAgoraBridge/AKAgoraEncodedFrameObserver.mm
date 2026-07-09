@@ -11,12 +11,12 @@ class EncodedFrameRelay : public agora::media::IVideoEncodedFrameObserver {
 public:
     explicit EncodedFrameRelay(AKAgoraEncodedFrameObserver *owner) : owner_(owner) {}
 
-    bool onEncodedVideoFrameReceived(const char *channelId,
-                                     agora::rtc::uid_t uid,
+    // Agora 4.5.x IVideoEncodedFrameObserver::onEncodedVideoFrameReceived has no
+    // leading channelId parameter (it was added in the 4.6.x SDK).
+    bool onEncodedVideoFrameReceived(agora::rtc::uid_t uid,
                                      const uint8_t *imageBuffer,
                                      size_t length,
                                      const agora::rtc::EncodedVideoFrameInfo &info) override {
-        (void)channelId;
         (void)info;
         if (imageBuffer == nullptr || length == 0) return true;
 

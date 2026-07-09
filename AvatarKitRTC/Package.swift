@@ -16,7 +16,7 @@ let package = Package(
         // CocoaPods podspec on the same main-SDK version.
         .package(url: "https://github.com/spatius-ai/avatarkit-ios-release.git", exact: "1.3.0"),
         .package(url: "https://github.com/apple/swift-protobuf.git", exact: "1.30.0"),
-        .package(url: "https://github.com/AgoraIO/AgoraRtcEngine_iOS.git", exact: "4.6.2"),
+        .package(url: "https://github.com/AgoraIO/AgoraRtcEngine_iOS.git", exact: "4.5.2"),
     ],
     targets: [
         .target(
