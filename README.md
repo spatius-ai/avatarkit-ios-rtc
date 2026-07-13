@@ -191,6 +191,40 @@ There is no public configuration on the provider itself — everything you can c
 
 All fields are persisted in `UserDefaults`. Hit **Load Avatar**, then **Connect**.
 
+## Building XCFrameworks (binary delivery)
+
+For integration via prebuilt `.xcframework` (instead of SPM/CocoaPods source),
+use `build-xcframework.sh` to produce distributable static xcframeworks.
+
+**How it works:** the SPM package can't be `xcodebuild archive`d straight into a
+framework (it produces `.o` + loose swiftmodule). So the script drives CocoaPods
+to compile the sources into real `.framework` bundles, then combines the device +
+simulator slices with `xcodebuild -create-xcframework`. Agora / AvatarKit /
+SwiftProtobuf are compiled for symbol resolution only — **not embedded**; the
+integrator supplies them at link time.
+
+**Prerequisites:** `cocoapods`, `xcodegen`, and a local vendored AvatarKit pod
+(a directory with `AvatarKit.podspec` + `AvatarKit.xcframework`, the latter grabbed
+from the [ios-release GitHub Release](https://github.com/spatius-ai/avatarkit-ios-release/releases)).
+
+```bash
+AVATARKIT_POD_PATH=/path/to/localpath_avatarkit \  # dir: AvatarKit.podspec + AvatarKit.xcframework
+AGORA_VERSION=4.5.2 \                                # Agora version to compile against
+./build-xcframework.sh
+```
+
+- `AGORA_VERSION` picks which Agora SDK ABI to compile against. **4.5.x and 4.6.x
+  are not interchangeable** — the encoded-frame observer signature differs
+  (`channelId` param added in 4.6.x), and the `AvatarKitAgoraBridge` source must
+  match. This `main` branch targets **4.5.x**.
+- Output: `dist/AvatarKitRTC.xcframework` + `dist/AvatarKitAgoraBridge.xcframework`
+  (device `ios-arm64` + simulator `ios-arm64`; Intel simulator unsupported).
+- Ship `AvatarKit.xcframework` (main SDK, from the ios-release Release) alongside
+  these two in the delivery zip.
+
+Integrator-side steps (Embed & Sign, `-lc++`, `EXCLUDED_ARCHS`, Agora version
+compatibility, route-A vs route-B usage) are documented in the delivery `集成说明.md`.
+
 ## License
 
 MIT

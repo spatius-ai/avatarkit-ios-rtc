@@ -1,151 +1,124 @@
 #!/bin/bash
-# Build distributable XCFrameworks for AvatarKitRTC + AvatarKitAgoraBridge,
-# matching the structure of the prior AvatarKit-iOS-RTC delivery zip.
+# Build distributable XCFrameworks for AvatarKitRTC + AvatarKitAgoraBridge.
 #
-# Both modules are static frameworks. Third-party deps (Agora, AvatarKit binary,
-# SwiftProtobuf) are NOT embedded — they are compiled for symbol resolution only;
-# the integrator supplies them (see 集成说明.md §四).
+# Approach: drive CocoaPods to compile the SPM-style sources into real
+# .framework bundles (with swiftmodule + generated headers), then combine the
+# device + simulator slices with `xcodebuild -create-xcframework`. This is more
+# robust than hand-assembling framework bundles from `xcodebuild archive`
+# products (which produce .o + loose swiftmodule, easy to get wrong).
+#
+# Both modules are STATIC frameworks. Third-party deps (Agora, AvatarKit binary,
+# SwiftProtobuf) are NOT embedded — they are compiled for symbol resolution
+# only; the integrator supplies them at link time (see 集成说明.md §五).
+#
+# Requirements: cocoapods, xcodegen, a local AvatarKit.xcframework pod.
+#
+# Usage:
+#   AVATARKIT_POD_PATH=/path/to/localpath_avatarkit \   # dir with AvatarKit.podspec + AvatarKit.xcframework
+#   AGORA_VERSION=4.5.2 \                                 # Agora pod version to compile against
+#   ./build-xcframework.sh
 #
 # Output: dist/<Module>.xcframework  (ios-arm64 device + ios-arm64 simulator)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-PKG="$ROOT/AvatarKitRTC"
-BUILD="$ROOT/build"
+PKG="$ROOT/AvatarKitRTC"                 # the SPM package dir (holds the podspecs)
 OUT="$ROOT/dist"
-SCHEME="AvatarKitRTC"          # builds AvatarKitRTC + its dep AvatarKitAgoraBridge
+WORK="$(mktemp -d)/pack"                 # throwaway CocoaPods project
+AGORA_VERSION="${AGORA_VERSION:-4.5.2}"
+AVATARKIT_POD_PATH="${AVATARKIT_POD_PATH:-}"
 
-MODULES=("AvatarKitRTC" "AvatarKitAgoraBridge")
+MODULES=("AvatarKitAgoraBridge" "AvatarKitRTC")
 
-rm -rf "$BUILD" "$OUT"
-mkdir -p "$BUILD" "$OUT"
+if [ -z "$AVATARKIT_POD_PATH" ] || [ ! -f "$AVATARKIT_POD_PATH/AvatarKit.podspec" ]; then
+  echo "ERROR: set AVATARKIT_POD_PATH to a dir containing AvatarKit.podspec + AvatarKit.xcframework" >&2
+  echo "  (the vendored main-SDK pod; grab AvatarKit.xcframework from the ios-release GitHub Release)" >&2
+  exit 1
+fi
 
-# ---------------------------------------------------------------------------
-# 1. Archive the scheme for device + simulator. SPM targets compile to
-#    <Module>.o + <Module>.swiftmodule (+ generated modulemap/headers), not
-#    framework bundles — so we archive, then assemble the bundles by hand.
-# ---------------------------------------------------------------------------
-archive() {                    # $1 = destination, $2 = tag (device|sim)
-  local dest="$1" tag="$2"
-  echo "==> Archiving ($tag): $dest"
-  # The Agora / AvatarKit binary deps ship arm64-only slices, so the simulator
-  # build must exclude x86_64 (Intel Mac simulator is unsupported — see §五).
-  ( cd "$PKG" && xcodebuild archive \
-      -scheme "$SCHEME" \
-      -destination "$dest" \
-      -archivePath "$BUILD/$tag.xcarchive" \
-      -derivedDataPath "$BUILD/dd-$tag" \
-      SKIP_INSTALL=NO \
-      BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
-      ONLY_ACTIVE_ARCH=NO \
-      ARCHS=arm64 >/dev/null )
-}
+command -v pod       >/dev/null || { echo "ERROR: cocoapods not installed" >&2; exit 1; }
+command -v xcodegen  >/dev/null || { echo "ERROR: xcodegen not installed"  >&2; exit 1; }
 
-archive "generic/platform=iOS"           device
-archive "generic/platform=iOS Simulator" sim
+echo "==> Agora version : $AGORA_VERSION"
+echo "==> AvatarKit pod  : $AVATARKIT_POD_PATH"
+echo "==> Package        : $PKG"
 
 # ---------------------------------------------------------------------------
-# 2. Assemble a static <Module>.framework from the archive products.
+# 1. Stage a copy of the package with podspec source_files rewritten for local
+#    :path use (the committed podspecs prefix paths with AvatarKitRTC/ for the
+#    :git remote checkout; a local :path points straight at the package dir).
 # ---------------------------------------------------------------------------
-assemble_framework() {         # $1 = module, $2 = tag, $3 = out framework dir
-  local module="$1" tag="$2" fw="$3"
-  local base="$BUILD/dd-$tag/Build/Intermediates.noindex/ArchiveIntermediates/$SCHEME"
-  local sdk; [ "$tag" = "device" ] && sdk="iphoneos" || sdk="iphonesimulator"
-  local pdir="$base/BuildProductsPath/Release-$sdk"
-  local gdir="$base/IntermediateBuildFilesPath/GeneratedModuleMaps-$sdk"
-  # The .o under BuildProductsPath is a symlink into a cleaned-up install dir;
-  # the real Mach-O object lives in the archive's Products tree.
-  local objdir="$BUILD/$tag.xcarchive/Products/Users/$(whoami)/Objects"
-
-  rm -rf "$fw"
-  mkdir -p "$fw/Headers" "$fw/Modules"
-
-  # Static binary: the object file IS the static framework binary.
-  cp "$objdir/$module.o" "$fw/$module"
-
-  # Swift module (Swift targets only).
-  if [ -e "$pdir/$module.swiftmodule" ]; then
-    mkdir -p "$fw/Modules/$module.swiftmodule"
-    cp -R "$pdir/$module.swiftmodule/." "$fw/Modules/$module.swiftmodule/"
-  fi
-
-  # Generated -Swift.h / umbrella / modulemap.
-  [ -e "$gdir/$module-Swift.h" ] && cp "$gdir/$module-Swift.h" "$fw/Headers/"
-  # Umbrella header: reuse the source public header for the ObjC bridge; the
-  # Swift module has an auto-generated umbrella.
-  if [ "$module" = "AvatarKitAgoraBridge" ]; then
-    cp "$PKG/Sources/AvatarKitAgoraBridge/include/"*.h "$fw/Headers/" 2>/dev/null || true
-  fi
-
-  # module.modulemap (patched to framework form).
-  write_modulemap "$module" "$fw/Modules/module.modulemap"
-
-  # Info.plist
-  write_info_plist "$module" "$fw/Info.plist"
-}
-
-write_modulemap() {            # $1 = module, $2 = out path
-  local module="$1" out="$2"
-  if [ "$module" = "AvatarKitRTC" ]; then
-    cat > "$out" <<EOF
-framework module AvatarKitRTC {
-  umbrella header "AvatarKitRTC-umbrella.h"
-
-  export *
-  module * { export * }
-}
-
-module AvatarKitRTC.Swift {
-  header "AvatarKitRTC-Swift.h"
-  requires objc
-}
-EOF
-    # umbrella for RTC (Swift-only target has empty ObjC umbrella)
-    echo "" > "$(dirname "$(dirname "$out")")/Headers/AvatarKitRTC-umbrella.h"
-  else
-    cat > "$out" <<EOF
-framework module AvatarKitAgoraBridge {
-  umbrella header "AvatarKitAgoraBridge-umbrella.h"
-
-  export *
-  module * { export * }
-}
-EOF
-    # umbrella imports the public bridge header
-    echo '#import "AvatarKitAgoraBridge.h"' > "$(dirname "$(dirname "$out")")/Headers/AvatarKitAgoraBridge-umbrella.h"
-  fi
-}
-
-write_info_plist() {           # $1 = module, $2 = out path
-  cat > "$2" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleIdentifier</key><string>ai.spatius.$1</string>
-  <key>CFBundleName</key><string>$1</string>
-  <key>CFBundlePackageType</key><string>FMWK</string>
-  <key>MinimumOSVersion</key><string>16.0</string>
-</dict>
-</plist>
-EOF
-}
+STAGE="$(dirname "$WORK")/pkg"
+rm -rf "$STAGE"; mkdir -p "$STAGE"
+cp -R "$PKG/." "$STAGE/"
+sed -i '' 's|"AvatarKitRTC/Sources/|"Sources/|g' "$STAGE/AvatarKitRTC.podspec" "$STAGE/AvatarKitAgoraBridge.podspec"
 
 # ---------------------------------------------------------------------------
-# 3. For each module: assemble device + sim frameworks, then create xcframework.
+# 2. Generate a minimal host app + Podfile that pulls the three local pods and
+#    the requested Agora version, then pod install.
 # ---------------------------------------------------------------------------
+mkdir -p "$WORK/App"
+cat > "$WORK/App/App.swift" <<'SWIFT'
+import SwiftUI
+@main struct PackApp: App { var body: some Scene { WindowGroup { Text("pack") } } }
+SWIFT
+cat > "$WORK/project.yml" <<YML
+name: Pack
+options: { bundleIdPrefix: ai.spatius.pack, deploymentTarget: { iOS: "16.0" } }
+targets:
+  Pack:
+    type: application
+    platform: iOS
+    sources: [App]
+    settings: { base: { GENERATE_INFOPLIST_FILE: YES, PRODUCT_BUNDLE_IDENTIFIER: ai.spatius.pack, SWIFT_VERSION: "6.0" } }
+YML
+cat > "$WORK/Podfile" <<RUBY
+platform :ios, '16.0'
+install! 'cocoapods', :warn_for_unused_master_specs_repo => false
+target 'Pack' do
+  use_frameworks! :linkage => :static
+  pod 'AvatarKit',            :path => '$AVATARKIT_POD_PATH'
+  pod 'AvatarKitAgoraBridge', :path => '$STAGE'
+  pod 'AvatarKitRTC',         :path => '$STAGE'
+  pod 'AgoraRtcEngine_iOS',   '$AGORA_VERSION'
+end
+post_install do |i|
+  i.pods_project.targets.each { |t| t.build_configurations.each { |c| c.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'x86_64' } }
+end
+RUBY
+
+( cd "$WORK" && xcodegen generate >/dev/null && pod install >/dev/null )
+
+# ---------------------------------------------------------------------------
+# 3. Build each pod scheme for device + simulator (Release, distribution),
+#    then create the xcframework from the two produced .framework bundles.
+# ---------------------------------------------------------------------------
+build() {   # $1 = scheme, $2 = sdk, $3 = destination, $4 = derivedData
+  ( cd "$WORK" && xcodebuild build \
+      -workspace Pack.xcworkspace -scheme "$1" \
+      -sdk "$2" -destination "$3" -configuration Release \
+      ARCHS=arm64 EXCLUDED_ARCHS=x86_64 \
+      BUILD_LIBRARY_FOR_DISTRIBUTION=YES CODE_SIGNING_ALLOWED=NO \
+      -derivedDataPath "$4" >/dev/null )
+}
+
+rm -rf "$OUT"; mkdir -p "$OUT"
 for module in "${MODULES[@]}"; do
-  echo "==> Packaging $module.xcframework"
-  dev_fw="$BUILD/fw-device/$module.framework"
-  sim_fw="$BUILD/fw-sim/$module.framework"
-  assemble_framework "$module" device "$dev_fw"
-  assemble_framework "$module" sim    "$sim_fw"
+  echo "==> Building $module (device + simulator)"
+  build "$module" iphoneos        'generic/platform=iOS'           "$WORK/dd-dev"
+  build "$module" iphonesimulator 'generic/platform=iOS Simulator' "$WORK/dd-sim"
 
-  xcodebuild -create-xcframework \
-    -framework "$dev_fw" \
-    -framework "$sim_fw" \
+  dev="$(find "$WORK/dd-dev/Build/Products" -name "$module.framework" -type d | grep -v XCFramework | head -1)"
+  sim="$(find "$WORK/dd-sim/Build/Products" -name "$module.framework" -type d | grep -v XCFramework | head -1)"
+  [ -n "$dev" ] && [ -n "$sim" ] || { echo "ERROR: $module.framework not produced" >&2; exit 1; }
+
+  echo "==> Packaging $module.xcframework"
+  xcodebuild -create-xcframework -framework "$dev" -framework "$sim" \
     -output "$OUT/$module.xcframework" >/dev/null
 done
 
-echo "==> Done. Output:"
-find "$OUT" -maxdepth 2 -name "*.framework" | sort
+echo "==> Done. Output in $OUT:"
+ls -d "$OUT"/*.xcframework
+echo
+echo "NOTE: AvatarKit.xcframework (main SDK) is shipped as-is from the ios-release"
+echo "      GitHub Release; add it to the delivery zip alongside these two."
