@@ -11,3 +11,6 @@ Packages/
 .swiftpm/configuration/registries.json
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .build/
+build/
+dist/
+*.xcarchive

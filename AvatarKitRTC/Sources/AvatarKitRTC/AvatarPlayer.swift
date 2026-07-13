@@ -1,5 +1,6 @@
 import Foundation
 import AvatarKit
+import AgoraRtcKit
 
 /// Configuration for AvatarPlayer.
 public struct AvatarPlayerOptions: Sendable {
@@ -158,6 +159,66 @@ public enum AvatarPlayerEvent: Sendable {
             ])
             throw error
         }
+    }
+
+    /// Attach to a host-owned Agora engine (route B / external engine).
+    ///
+    /// Unlike `connect(_:)`, the SDK does not create, join, or destroy the RTC
+    /// engine — the host owns the full RTC lifecycle (engine init, client role,
+    /// encoded-video subscription, joinChannel). The SDK only extracts avatar
+    /// SEI payloads from the encoded video stream and renders them.
+    ///
+    /// Call ordering (host side):
+    /// ```
+    /// let engine = AgoraRtcEngineKit.sharedEngine(...)
+    /// try player.attach(to: engine)   // MUST be before joinChannel
+    /// engine.setClientRole(...); /* subscribe encoded video */; engine.joinChannel(...)
+    /// // ... avatar streams in ...
+    /// player.detach()                 // engine is handed back untouched
+    /// ```
+    ///
+    /// - Note: The provider must be an `AgoraProvider`. Do not mix with
+    ///   `connect(_:)` — the managed and external-engine paths are exclusive.
+    public func attach(to engine: AgoraRtcEngineKit) throws {
+        guard !_isConnected else {
+            throw AvatarPlayerError.alreadyConnected
+        }
+        guard let agora = provider as? AgoraProvider else {
+            throw AvatarPlayerError.externalEngineUnsupported
+        }
+
+        Telemetry.event("rtc_attach_start", level: .info, ["provider": providerName])
+        // Wire up the animation/render callbacks exactly as connect() does —
+        // without this the SEI payloads would be parsed but never rendered.
+        Task { await setupAnimationCallbacks() }
+        do {
+            try agora.attachExternalEngine(engine)
+            _isConnected = true
+            sessionStartTime = nowMs()
+            stallCount = 0
+            reconnectCount = 0
+            conversationCount = 0
+            resetStreamStats()
+            Telemetry.event("rtc_attach_success", level: .info, ["provider": providerName])
+        } catch {
+            Telemetry.event("rtc_attach_failed", level: .error, [
+                "provider": providerName,
+                "reason": String(describing: error),
+            ])
+            throw error
+        }
+    }
+
+    /// Detach from a host-owned engine attached via `attach(to:)`. Removes the
+    /// SDK's observer and returns the avatar to idle, but never touches the
+    /// host's engine (no leaveChannel / destroy).
+    public func detach() async {
+        guard _isConnected, let agora = provider as? AgoraProvider else { return }
+        agora.detachExternalEngine()
+        animationHandler.dispose()
+        await avatarView.renderFrame(nil, startIdle: true)
+        _isConnected = false
+        Telemetry.event("rtc_detached", level: .info, ["provider": providerName])
     }
 
     public func disconnect() async {
@@ -476,12 +537,14 @@ public enum AvatarPlayerError: LocalizedError {
     case alreadyConnected
     case notConnected
     case noPreviousConnection
+    case externalEngineUnsupported
 
     public var errorDescription: String? {
         switch self {
         case .alreadyConnected: return "Already connected. Please disconnect first."
         case .notConnected: return "Not connected. Please call connect() first."
         case .noPreviousConnection: return "Cannot reconnect: no previous connection."
+        case .externalEngineUnsupported: return "attach(to:) requires an AgoraProvider."
         }
     }
 }

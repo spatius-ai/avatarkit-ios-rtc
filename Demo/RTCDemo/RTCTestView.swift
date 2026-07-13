@@ -3,6 +3,7 @@ import Combine
 import AVFoundation
 import AvatarKit
 import AvatarKitRTC
+import AgoraRtcKit
 
 /// End-to-end Agora RTC playback test.
 ///
@@ -59,7 +60,7 @@ struct RTCTestView: View {
             // Detached so the cleanup doesn't get cancelled when the view
             // (and its @StateObject) is torn down by NavigationStack.
             let captured = vm
-            Task.detached { await captured.disconnect() }
+            Task.detached { await captured.disconnectAny() }
         }
     }
 
@@ -132,7 +133,7 @@ struct RTCTestView: View {
 
                 if vm.isConnected {
                     Button {
-                        Task { await vm.disconnect() }
+                        Task { await vm.disconnectAny() }
                     } label: {
                         Label("Disconnect", systemImage: "stop.circle")
                             .frame(maxWidth: .infinity)
@@ -149,6 +150,16 @@ struct RTCTestView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(vm.avatar == nil || vm.isConnecting)
                 }
+            }
+            if !vm.isConnected {
+                Button {
+                    Task { await vm.connectExternalEngine() }
+                } label: {
+                    Label("Connect (External Engine)", systemImage: "arrow.triangle.branch")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(vm.avatar == nil || vm.isConnecting)
             }
             if vm.isConnected {
                 Button {
@@ -215,6 +226,11 @@ final class RTCTestViewModel: ObservableObject {
     private var avatarView: AvatarView?
     private var provider: AgoraProvider?
     private var player: AvatarPlayer?
+    /// Host-owned engine for route B (external engine) verification.
+    private var externalEngine: AgoraRtcEngineKit?
+    /// True while the current session was established via `attach(to:)` (route B),
+    /// so `disconnect()` routes to the host-owned teardown.
+    private var usingExternalEngine = false
 
     func initializeSDK() {
         let trimmedApp = appID.trimmingCharacters(in: .whitespaces)
@@ -279,6 +295,7 @@ final class RTCTestViewModel: ObservableObject {
         isConnecting = true
         defer { isConnecting = false }
         lastError = ""
+        usingExternalEngine = false
         updateConnectionState(.connecting)
 
         // Pre-request mic permission so Agora doesn't fail silently. Agora's
@@ -286,7 +303,6 @@ final class RTCTestViewModel: ObservableObject {
         let micGranted = await requestMicPermission()
         if !micGranted {
             lastError = "Microphone permission denied — open Settings → Avatar → Microphone"
-            print("[RTCTest] mic permission denied")
         }
 
         let trimmedAgoraApp = agoraAppID.trimmingCharacters(in: .whitespaces)
@@ -340,6 +356,122 @@ final class RTCTestViewModel: ObservableObject {
         }
     }
 
+    /// Route B verification: the host app owns the Agora engine.
+    ///
+    /// This mirrors what an integrator who already has their own Agora engine
+    /// would write: create the engine, set role, subscribe to encoded video,
+    /// then hand it to the player via `attach(to:)` BEFORE joining. The SDK
+    /// never creates, joins, or destroys the engine here.
+    func connectExternalEngine() async {
+        guard let avatarView, !isConnecting, !isConnected else { return }
+
+        isConnecting = true
+        defer { isConnecting = false }
+        lastError = ""
+        updateConnectionState(.connecting)
+
+        // Agora credentials come from the Config sheet — the integrator supplies
+        // appId/channel/token/uid from their own backend.
+        let trimmedAgoraApp = agoraAppID.trimmingCharacters(in: .whitespaces)
+        let trimmedChannel  = agoraChannel.trimmingCharacters(in: .whitespaces)
+        let trimmedToken    = agoraToken.trimmingCharacters(in: .whitespaces)
+        let parsedUID       = UInt(agoraUID.trimmingCharacters(in: .whitespaces)) ?? 0
+
+        guard !trimmedAgoraApp.isEmpty, !trimmedChannel.isEmpty else {
+            lastError = "Agora App ID and Channel are required (open Config)"
+            updateConnectionState(.failed)
+            return
+        }
+
+        usingExternalEngine = true
+        do {
+            print("[RTCTest-B] host-owned engine, channel=\(trimmedChannel) uid=\(parsedUID)")
+
+            // 1. Host creates and owns the engine.
+            let cfg = AgoraRtcEngineConfig()
+            cfg.appId = trimmedAgoraApp
+            cfg.channelProfile = .liveBroadcasting
+            // Route B: the host owns the engine and its delegate. Here the demo
+            // passes its own delegate (nil for brevity); an integrator would set
+            // their own AgoraRtcEngineDelegate to receive join / connection
+            // callbacks — attach(to:) never touches it.
+            let engine = AgoraRtcEngineKit.sharedEngine(with: cfg, delegate: nil)
+            self.externalEngine = engine
+
+            let provider = AgoraProvider()
+            let player = AvatarPlayer(
+                provider: provider,
+                avatarView: avatarView,
+                options: AvatarPlayerOptions(logLevel: .info)
+            )
+            player.subscribe { [weak self] event in
+                Task { @MainActor in self?.handlePlayerEvent(event) }
+            }
+            self.provider = provider
+            self.player = player
+
+            // 2. Attach BEFORE join — installs observer + sets enable_sei.
+            try player.attach(to: engine)
+
+            // 3. Host configures subscription + joins the channel itself.
+            engine.setClientRole(.broadcaster)
+            let opts = AgoraRtcChannelMediaOptions()
+            opts.autoSubscribeAudio = true
+            opts.autoSubscribeVideo = true
+            opts.publishCameraTrack = false
+            opts.publishMicrophoneTrack = false
+            opts.clientRoleType = .broadcaster
+            let rc = engine.joinChannel(
+                byToken: trimmedToken.isEmpty ? nil : trimmedToken,
+                channelId: trimmedChannel,
+                uid: parsedUID,
+                mediaOptions: opts
+            )
+            guard rc == 0 else {
+                throw NSError(domain: "RTCTest-B", code: Int(rc),
+                              userInfo: [NSLocalizedDescriptionKey: "host joinChannel failed rc=\(rc)"])
+            }
+
+            isConnected = true
+            updateConnectionState(.connected)
+            print("[RTCTest-B] attached + host joined")
+        } catch {
+            lastError = "Attach failed: \(error.localizedDescription)"
+            updateConnectionState(.failed)
+            await disconnectExternalEngine()
+        }
+    }
+
+    /// Routes teardown to the flavour that matches the live session so the
+    /// Disconnect button and view teardown work for both connect paths.
+    func disconnectAny() async {
+        if usingExternalEngine {
+            await disconnectExternalEngine()
+        } else {
+            await disconnect()
+        }
+    }
+
+    /// Route B teardown: player detaches (observer off), then the host leaves
+    /// and destroys its own engine.
+    func disconnectExternalEngine() async {
+        if let player { await player.detach() }
+        if let engine = externalEngine {
+            engine.leaveChannel(nil)
+            AgoraRtcEngineKit.destroy()
+        }
+        externalEngine = nil
+        player = nil
+        provider = nil
+        usingExternalEngine = false
+        isConnected = false
+        updateConnectionState(.disconnected)
+        statsFPS = "-"
+        statsTotalFrames = 0
+        statsLost = 0
+        statsDropped = 0
+    }
+
     func toggleMic() async {
         guard let player else { return }
         do {
@@ -378,7 +510,6 @@ final class RTCTestViewModel: ObservableObject {
     }
 
     func disconnect() async {
-        print("[RTCTest] disconnect() start, hasPlayer=\(player != nil)")
         if let player {
             await player.disconnect()
         }
@@ -391,11 +522,6 @@ final class RTCTestViewModel: ObservableObject {
         statsTotalFrames = 0
         statsLost = 0
         statsDropped = 0
-        print("[RTCTest] disconnect() done")
-    }
-
-    deinit {
-        print("[RTCTest] ViewModel deinit (hasPlayer=\(player != nil))")
     }
 
     // MARK: - Player events

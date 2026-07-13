@@ -16,6 +16,10 @@ import AvatarKitAgoraBridge
     public override var name: String { "agora" }
 
     private let logger = RTCLogger("AgoraProvider")
+    // Strong by design. Managed path: we create it via `sharedEngine` and own it
+    // until `disconnect()` destroys it. External-engine path: `attachExternalEngine`
+    // holds a strong ref only for the session lifetime and drops it (engine = nil)
+    // in `detachExternalEngine` without destroying — the host owns the real lifecycle.
     private var engine: AgoraRtcEngineKit?
 
     /// The native Agora `AgoraRtcEngineKit`, or nil if not connected.
@@ -32,6 +36,12 @@ import AvatarKitAgoraBridge
     private var localUid: UInt = 0
     private var hasJoined = false
     private var hasPublishedAudio = false
+
+    /// True when the engine was injected by the host app (route B / external
+    /// engine). In this mode we only borrow the engine: we never call
+    /// `sharedEngine`, `joinChannel`, `leaveChannel`, or `destroy` — the host
+    /// owns the full RTC lifecycle. We only attach our encoded-frame observer.
+    private var isExternalEngine = false
 
     // External PCM source state (used for integration tests / programmatic
     // audio injection that doesn't go through the device microphone).
@@ -76,59 +86,7 @@ import AvatarKitAgoraBridge
 
         // Install the encoded frame observer **before** joining so we don't
         // miss the first frames.
-        //
-        // Threading model:
-        //   1. Agora calls back on its internal `aosl_main` thread, which is
-        //      guarded by `dispatch_assert_queue` — non-trivial work there
-        //      trips EXC_BREAKPOINT. Hop off immediately.
-        //   2. NAL slicing + SEI payload extraction run on a dedicated serial
-        //      queue (CPU-bound, no UI work).
-        //   3. The MainActor is only touched when there are SEI payloads to
-        //      dispatch, or rarely for diagnostics — empty frames never wake
-        //      the UI thread.
-        let workQueue = DispatchQueue(label: "ai.spatius.rtc.agora-nal", qos: .userInitiated)
-        nonisolated(unsafe) var localFrameCount = 0
-        let obs = AKAgoraEncodedFrameObserver()
-        obs.handler = { [weak self] nalData, uid in
-            // `nalData` is bridged from NSData to Swift `Data`, which is a
-            // value type backed by COW storage. Passing the bridged Data into
-            // a dispatch block is safe (and zero-copy in the common case where
-            // we never mutate it).
-            workQueue.async { [weak self, nalData] in
-                guard let self else { return }
-                localFrameCount += 1
-                let frames = localFrameCount
-                let payloads = H264SEIExtractor.extractUserDataPayloads(from: nalData)
-                let shouldDiag = frames <= 3
-                let headHex: String
-                let diag: String
-                if shouldDiag {
-                    headHex = nalData.prefix(32).map { String(format: "%02x", $0) }.joined(separator: " ")
-                    diag = H264SEIExtractor.diagnose(nalData)
-                } else {
-                    headHex = ""
-                    diag = ""
-                }
-                let bytes = nalData.count
-                // Only touch the MainActor when we actually have something for
-                // it (avoids scheduling ~25 empty Tasks/sec onto the UI thread).
-                let wantDiag = shouldDiag || (frames % 100) == 0
-                guard !payloads.isEmpty || wantDiag else { return }
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    if wantDiag {
-                        self.recordNalDiagnostics(uid: uid, frames: frames, nalBytes: bytes, seiCount: payloads.count, headHex: headHex, diag: diag)
-                    }
-                    for payload in payloads {
-                        self.parser.handleSEIPayload(payload)
-                    }
-                }
-            }
-        }
-        if !obs.attach(toEngine: kit) {
-            logger.error("Failed to register encoded frame observer")
-        }
-        self.observer = obs
+        self.installEncodedFrameObserver(on: kit)
 
         let joinRc = kit.joinChannel(
             byToken: cfg.token,
@@ -159,6 +117,12 @@ import AvatarKitAgoraBridge
     }
 
     public override func disconnect() async {
+        // In external-engine mode the host owns the RTC lifecycle: never leave
+        // the channel or destroy the engine. Route to detach instead.
+        if isExternalEngine {
+            detachExternalEngine()
+            return
+        }
         if let obs = observer {
             obs.detach()
             observer = nil
@@ -174,6 +138,73 @@ import AvatarKitAgoraBridge
         engine = nil
         hasJoined = false
         hasPublishedAudio = false
+        setConnectionState(.disconnected)
+    }
+
+    // MARK: - External engine (route B)
+
+    /// Attach to a host-owned `AgoraRtcEngineKit` instead of creating one.
+    ///
+    /// In this mode the SDK does **not** own the RTC lifecycle: the host app is
+    /// responsible for creating the engine, setting the client role, subscribing
+    /// to encoded video, and joining the channel. The SDK only installs its
+    /// encoded-frame observer to extract avatar SEI payloads and render them.
+    ///
+    /// Must be called **before** the host joins the channel: `enable_sei` is an
+    /// engine parameter that only takes effect for subsequent joins, and the
+    /// observer must be registered before the first frames arrive.
+    ///
+    /// The host must NOT call `connect(_:)` on this provider in external-engine
+    /// mode — the two paths are mutually exclusive.
+    public func attachExternalEngine(_ externalEngine: AgoraRtcEngineKit) throws {
+        if engine != nil {
+            throw AgoraProviderError.invalidConfig(
+                "Engine already set; call disconnect()/detachExternalEngine() first")
+        }
+
+        // Avatar SEI delivery requires this engine parameter. The host owns the
+        // engine, but this is a hard requirement for the avatar to render, so we
+        // set it here (before the host's joinChannel) rather than silently
+        // failing when the host forgets. Unlike the managed path — where a
+        // missing SEI stream eventually surfaces as a join timeout — route B has
+        // no such backstop (the host owns connectivity), so a failure here would
+        // otherwise be an unexplained black screen. Surface it as a throw.
+        let seiRc = externalEngine.setParameters("{\"rtc.video.enable_sei\":true}")
+        if seiRc != 0 {
+            throw AgoraProviderError.seiEnableFailed(Int(seiRc))
+        }
+
+        // Install the encoded-frame observer. This borrows the engine's media
+        // engine via the native handle; it does not depend on how the engine was
+        // created or whether it has joined yet. If registration fails, no frames
+        // will ever reach the parser — fail loudly instead of black-screening.
+        if !installEncodedFrameObserver(on: externalEngine) {
+            // Roll back the half-installed observer so a retry starts clean.
+            observer?.detach()
+            observer = nil
+            throw AgoraProviderError.observerAttachFailed
+        }
+
+        self.engine = externalEngine
+        self.isExternalEngine = true
+        // The host drives connectivity; from the SDK's point of view the data
+        // path is ready as soon as the observer is installed.
+        setConnectionState(.connected)
+    }
+
+    /// Detach from a host-owned engine: remove our observer and release our
+    /// references, but never leave the channel or destroy the engine — the host
+    /// owns those.
+    public func detachExternalEngine() {
+        guard isExternalEngine else { return }
+        if let obs = observer {
+            obs.detach()
+            observer = nil
+        }
+        parser.detach()
+        animationCallbacks = nil
+        engine = nil
+        isExternalEngine = false
         setConnectionState(.disconnected)
     }
 
@@ -265,6 +296,74 @@ import AvatarKitAgoraBridge
         }
     }
 
+    // MARK: - Encoded frame observer
+
+    /// Build the encoded-frame observer and register it on `kit`. Shared by the
+    /// managed `connect(_:)` path and the external-engine `attachExternalEngine`
+    /// path — the observer's behavior is identical; only the engine's origin and
+    /// lifecycle differ.
+    ///
+    /// Threading model:
+    ///   1. Agora calls back on its internal `aosl_main` thread, which is
+    ///      guarded by `dispatch_assert_queue` — non-trivial work there trips
+    ///      EXC_BREAKPOINT. Hop off immediately.
+    ///   2. NAL slicing + SEI payload extraction run on a dedicated serial
+    ///      queue (CPU-bound, no UI work).
+    ///   3. The MainActor is only touched when there are SEI payloads to
+    ///      dispatch, or rarely for diagnostics — empty frames never wake the
+    ///      UI thread.
+    /// - Returns: `true` if the native observer registered successfully. The
+    ///   caller decides whether a failure is fatal (route B throws; the managed
+    ///   path lets the join timeout surface it).
+    @discardableResult
+    private func installEncodedFrameObserver(on kit: AgoraRtcEngineKit) -> Bool {
+        let workQueue = DispatchQueue(label: "ai.spatius.rtc.agora-nal", qos: .userInitiated)
+        nonisolated(unsafe) var localFrameCount = 0
+        let obs = AKAgoraEncodedFrameObserver()
+        obs.handler = { [weak self] nalData, uid in
+            // `nalData` is bridged from NSData to Swift `Data`, which is a
+            // value type backed by COW storage. Passing the bridged Data into
+            // a dispatch block is safe (and zero-copy in the common case where
+            // we never mutate it).
+            workQueue.async { [weak self, nalData] in
+                guard let self else { return }
+                localFrameCount += 1
+                let frames = localFrameCount
+                let payloads = H264SEIExtractor.extractUserDataPayloads(from: nalData)
+                let shouldDiag = frames <= 3
+                let headHex: String
+                let diag: String
+                if shouldDiag {
+                    headHex = nalData.prefix(32).map { String(format: "%02x", $0) }.joined(separator: " ")
+                    diag = H264SEIExtractor.diagnose(nalData)
+                } else {
+                    headHex = ""
+                    diag = ""
+                }
+                let bytes = nalData.count
+                // Only touch the MainActor when we actually have something for
+                // it (avoids scheduling ~25 empty Tasks/sec onto the UI thread).
+                let wantDiag = shouldDiag || (frames % 100) == 0
+                guard !payloads.isEmpty || wantDiag else { return }
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    if wantDiag {
+                        self.recordNalDiagnostics(uid: uid, frames: frames, nalBytes: bytes, seiCount: payloads.count, headHex: headHex, diag: diag)
+                    }
+                    for payload: Data in payloads {
+                        self.parser.handleSEIPayload(payload)
+                    }
+                }
+            }
+        }
+        let ok = obs.attach(toEngine: kit)
+        if !ok {
+            logger.error("Failed to register encoded frame observer")
+        }
+        self.observer = obs
+        return ok
+    }
+
     // MARK: - Diagnostics
 
     private func recordNalDiagnostics(uid: UInt, frames: Int, nalBytes: Int, seiCount: Int, headHex: String, diag: String) {
@@ -348,6 +447,8 @@ public enum AgoraProviderError: LocalizedError {
     case joinFailed(Int)
     case joinTimeout
     case externalAudioStartFailed(String)
+    case seiEnableFailed(Int)
+    case observerAttachFailed
 
     public var errorDescription: String? {
         switch self {
@@ -356,6 +457,8 @@ public enum AgoraProviderError: LocalizedError {
         case .joinFailed(let rc): return "Agora joinChannel failed: rc=\(rc)"
         case .joinTimeout: return "Agora joinChannel timed out"
         case .externalAudioStartFailed(let m): return "Failed to start external audio: \(m)"
+        case .seiEnableFailed(let rc): return "Failed to enable SEI on the host engine (rc=\(rc)); avatar frames won't be delivered. Call attach(to:) before joinChannel."
+        case .observerAttachFailed: return "Failed to register the encoded-frame observer on the host engine; avatar frames can't be received."
         }
     }
 }
