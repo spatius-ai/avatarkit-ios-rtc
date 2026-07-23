@@ -216,9 +216,24 @@ public enum AvatarPlayerEvent: Sendable {
         guard _isConnected, let agora = provider as? AgoraProvider else { return }
         agora.detachExternalEngine()
         animationHandler.dispose()
-        await avatarView.renderFrame(nil, startIdle: true)
+        await playTransitionToIdle()
         _isConnected = false
         Telemetry.event("rtc_detached", level: .info, ["provider": providerName])
+    }
+
+    /// Play a soft transition from the current pose back to idle, then hand the
+    /// renderer back to AvatarKit. Mirrors AnimationHandler's server-driven
+    /// end-transition path so tearing a session down feels the same as a normal
+    /// conversation end, instead of snapping straight to the idle start frame.
+    private func playTransitionToIdle() async {
+        let transitionFrames = await avatarView.generateTransitionToIdle(
+            frameCount: Self.DISCONNECT_TRANSITION_FRAMES
+        )
+        for frame in transitionFrames {
+            await avatarView.renderFrame(frame, startIdle: false)
+            try? await Task.sleep(nanoseconds: Self.DISCONNECT_TRANSITION_FRAME_INTERVAL_NS)
+        }
+        await avatarView.renderFrame(nil, startIdle: true)
     }
 
     public func disconnect() async {
@@ -231,17 +246,7 @@ public enum AvatarPlayerEvent: Sendable {
         let summary = animationHandler.getSessionSummary()
         await provider.disconnect()
         animationHandler.dispose()
-        // Soft transition back to idle then hand the renderer back to
-        // AvatarKit. Mirrors AnimationHandler's server-driven end-transition
-        // path so disconnect feels the same as a normal conversation end.
-        let transitionFrames = await avatarView.generateTransitionToIdle(
-            frameCount: Self.DISCONNECT_TRANSITION_FRAMES
-        )
-        for frame in transitionFrames {
-            await avatarView.renderFrame(frame, startIdle: false)
-            try? await Task.sleep(nanoseconds: Self.DISCONNECT_TRANSITION_FRAME_INTERVAL_NS)
-        }
-        await avatarView.renderFrame(nil, startIdle: true)
+        await playTransitionToIdle()
         _isConnected = false
 
         let sessionDuration = sessionStartTime > 0 ? Int(nowMs() - sessionStartTime) : 0
