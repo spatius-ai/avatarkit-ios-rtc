@@ -226,14 +226,14 @@ public enum AvatarPlayerEvent: Sendable {
     /// end-transition path so tearing a session down feels the same as a normal
     /// conversation end, instead of snapping straight to the idle start frame.
     private func playTransitionToIdle() async {
-        let transitionFrames = await avatarView.generateTransitionToIdle(
+        let transitionFrames = avatarView.generateTransitionToIdle(
             frameCount: Self.DISCONNECT_TRANSITION_FRAMES
         )
         for frame in transitionFrames {
-            await avatarView.renderFrame(frame, startIdle: false)
+            avatarView.renderFrameSync(frame, startIdle: false)
             try? await Task.sleep(nanoseconds: Self.DISCONNECT_TRANSITION_FRAME_INTERVAL_NS)
         }
-        await avatarView.renderFrame(nil, startIdle: true)
+        avatarView.renderFrameSync(nil, startIdle: true)
     }
 
     public func disconnect() async {
@@ -564,30 +564,30 @@ public enum AvatarPlayerError: LocalizedError {
         self.view = view
     }
 
-    func renderFromProtobuf(_ data: Data) async {
+    func renderFromProtobuf(_ data: Data) {
         do {
-            try await view?.renderFromProtobuf(data)
+            try view?.renderFromProtobufSync(data)
         } catch {
             // Renderer logs internally; swallow to keep the playback loop alive.
         }
     }
 
-    func renderFrame(_ frame: Frame?, startIdle: Bool) async {
-        await view?.renderFrame(frame, startIdle: startIdle)
+    func renderFrame(_ frame: Frame?, startIdle: Bool) {
+        view?.renderFrameSync(frame, startIdle: startIdle)
     }
 
-    func generateTransitionToFrame(_ data: Data, frameCount: Int) async -> [Frame] {
+    func generateTransitionToFrame(_ data: Data, frameCount: Int) -> [Frame] {
         guard let view else { return [] }
         do {
-            return try await view.generateTransitionToFrame(data, frameCount: frameCount)
+            return try view.generateTransitionToFrameSync(data, frameCount: frameCount)
         } catch {
             return []
         }
     }
 
-    func generateTransitionToIdle(frameCount: Int) async -> [Frame] {
+    func generateTransitionToIdle(frameCount: Int) -> [Frame] {
         guard let view else { return [] }
-        return await view.generateTransitionToIdle(frameCount: frameCount)
+        return view.generateTransitionToIdle(frameCount: frameCount)
     }
 
     func isReady() -> Bool {
