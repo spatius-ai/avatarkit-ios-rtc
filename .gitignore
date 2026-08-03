@@ -14,3 +14,7 @@ Packages/
 build/
 dist/
 *.xcarchive
+
+# Local demo credentials (agent-server endpoint). Never commit — this repo is public.
+Demo/RTCDemo/DemoSecrets.plist
+AvatarKitRTC/AvatarKit.xcframework/

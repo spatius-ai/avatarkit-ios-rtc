@@ -14,6 +14,9 @@ import AgoraRtcKit
 struct RTCTestView: View {
     @StateObject private var vm = RTCTestViewModel()
     @State private var showConfig = false
+    @State private var isProbing = false
+    @State private var probeFile: URL?
+    @State private var showProbeShare = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -171,6 +174,33 @@ struct RTCTestView: View {
                 }
                 .buttonStyle(.bordered)
             }
+
+            // Capture when each frame actually reached the screen, then hand the
+            // series off as a CSV. The playback clock aims for one frame every
+            // 40ms; whether it lands is only answerable on a device against a
+            // real stream, and scrolling the device log for the few rows either
+            // side of a hand-over is not a workable way to read it back.
+            Button {
+                if isProbing {
+                    probeFile = PlaybackProbe.stopAndWrite()
+                    isProbing = false
+                    showProbeShare = probeFile != nil
+                } else {
+                    PlaybackProbe.start()
+                    isProbing = true
+                }
+            } label: {
+                Label(isProbing ? "Stop Probe & Export" : "Start Playback Probe",
+                      systemImage: isProbing ? "stop.circle.fill" : "waveform.path.ecg")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(isProbing ? .orange : .accentColor)
+        }
+        .sheet(isPresented: $showProbeShare) {
+            if let probeFile {
+                ShareSheet(items: [probeFile])
+            }
         }
     }
 
@@ -206,6 +236,15 @@ final class RTCTestViewModel: ObservableObject {
     @AppStorage("rtc_agora_channel") var agoraChannel: String = ""
     @AppStorage("rtc_agora_token")   var agoraToken: String = ""
     @AppStorage("rtc_agora_uid")     var agoraUID: String = ""
+
+    /// Ask the internal agent-server for the four Agora values on Connect
+    /// instead of typing them in. Defaults on, but does nothing unless
+    /// DemoSecrets.plist supplies the endpoint (see DemoCredentials).
+    /// Mirrors the web demo's per-provider `autoFetch` flag.
+    @AppStorage("rtc_agora_auto_fetch") var agoraAutoFetch: Bool = true
+
+    /// Whether auto-fetch is actually available on this build.
+    var canAutoFetch: Bool { DemoCredentials.isConfigured }
 
     @Published var avatar: Avatar?
     @Published var isLoadingAvatar = false
@@ -282,6 +321,31 @@ final class RTCTestViewModel: ObservableObject {
         }
     }
 
+    /// Mint a fresh channel/token from the agent server, replacing whatever is
+    /// in the fields. Fresh rather than reused because Agora tokens expire, and
+    /// a stale one fails at join with an error that looks nothing like "your
+    /// token is old".
+    /// - Returns: false when the fetch was attempted and failed, meaning the
+    ///   caller should abort rather than join with half-filled credentials.
+    private func autoFetchAgoraIfEnabled(avatarID id: String) async -> Bool {
+        guard agoraAutoFetch, canAutoFetch else { return true }
+        do {
+            loadingMessage = "Fetching Agora credentials…"
+            let creds = try await DemoCredentials.fetchAgora(avatarID: id)
+            agoraAppID = creds.appID
+            agoraChannel = creds.channel
+            agoraToken = creds.token
+            agoraUID = creds.uid
+            loadingMessage = ""
+            return true
+        } catch {
+            loadingMessage = ""
+            lastError = "Auto-fetch failed: \(error.localizedDescription)"
+            updateConnectionState(.failed)
+            return false
+        }
+    }
+
     func connect() async {
         guard let avatarView, !isConnecting else { return }
         guard !isConnected else { return }
@@ -305,13 +369,17 @@ final class RTCTestViewModel: ObservableObject {
             lastError = "Microphone permission denied — open Settings → Avatar → Microphone"
         }
 
+        guard await autoFetchAgoraIfEnabled(avatarID: id) else { return }
+
         let trimmedAgoraApp = agoraAppID.trimmingCharacters(in: .whitespaces)
         let trimmedChannel  = agoraChannel.trimmingCharacters(in: .whitespaces)
         let trimmedToken    = agoraToken.trimmingCharacters(in: .whitespaces)
         let parsedUID       = UInt(agoraUID.trimmingCharacters(in: .whitespaces)) ?? 0
 
         guard !trimmedAgoraApp.isEmpty, !trimmedChannel.isEmpty else {
-            lastError = "Agora App ID and Channel are required (open Config)"
+            lastError = canAutoFetch
+                ? "Agora App ID and Channel are required (open Config, or enable Auto-fetch)"
+                : "Agora App ID and Channel are required (open Config)"
             updateConnectionState(.failed)
             return
         }
@@ -372,13 +440,19 @@ final class RTCTestViewModel: ObservableObject {
 
         // Agora credentials come from the Config sheet — the integrator supplies
         // appId/channel/token/uid from their own backend.
+        guard await autoFetchAgoraIfEnabled(
+            avatarID: avatarID.trimmingCharacters(in: .whitespaces)
+        ) else { return }
+
         let trimmedAgoraApp = agoraAppID.trimmingCharacters(in: .whitespaces)
         let trimmedChannel  = agoraChannel.trimmingCharacters(in: .whitespaces)
         let trimmedToken    = agoraToken.trimmingCharacters(in: .whitespaces)
         let parsedUID       = UInt(agoraUID.trimmingCharacters(in: .whitespaces)) ?? 0
 
         guard !trimmedAgoraApp.isEmpty, !trimmedChannel.isEmpty else {
-            lastError = "Agora App ID and Channel are required (open Config)"
+            lastError = canAutoFetch
+                ? "Agora App ID and Channel are required (open Config, or enable Auto-fetch)"
+                : "Agora App ID and Channel are required (open Config)"
             updateConnectionState(.failed)
             return
         }
@@ -577,6 +651,9 @@ private struct ConfigSheet: View {
                     LabeledField(title: "Avatar ID", text: $vm.avatarID)
                 }
                 Section {
+                    if vm.canAutoFetch {
+                        Toggle("Auto-fetch on Connect", isOn: $vm.agoraAutoFetch)
+                    }
                     LabeledField(title: "App ID", text: $vm.agoraAppID)
                     LabeledField(title: "Channel", text: $vm.agoraChannel)
                     LabeledField(title: "Token", text: $vm.agoraToken)
@@ -584,8 +661,15 @@ private struct ConfigSheet: View {
                 } header: {
                     Text("Agora")
                 } footer: {
-                    Text("Leave Token empty for App-ID-only channels; UID defaults to 0.")
-                        .font(.caption2)
+                    if vm.canAutoFetch {
+                        Text(vm.agoraAutoFetch
+                             ? "Connect requests a fresh channel and token; the four fields below are overwritten each time."
+                             : "Leave Token empty for App-ID-only channels; UID defaults to 0.")
+                            .font(.caption2)
+                    } else {
+                        Text("Leave Token empty for App-ID-only channels; UID defaults to 0.\nAdd Demo/RTCDemo/DemoSecrets.plist with an AGENT_SERVER key to enable auto-fetch.")
+                            .font(.caption2)
+                    }
                 }
             }
             .navigationTitle("Config")
@@ -633,4 +717,18 @@ private struct RTCAvatarViewWrapper: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: AvatarView, context: Context) {}
+}
+
+// MARK: - Share sheet
+
+/// Hands a captured probe file off to AirDrop / Files / anywhere else, so the
+/// series can leave the device without a cable.
+private struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

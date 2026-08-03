@@ -218,6 +218,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RTCDemo/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "RTC Demo";
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -256,6 +258,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RTCDemo/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "RTC Demo";
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
