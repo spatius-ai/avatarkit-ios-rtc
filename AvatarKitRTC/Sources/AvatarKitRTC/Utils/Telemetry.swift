@@ -27,6 +27,18 @@ enum Telemetry {
             case .double(let d): return .double(d)
             }
         }
+
+        /// The label as its underlying JSON type, so the recorded file shows
+        /// whether a value kept its native type or was stringified on the way
+        /// out — the alignment question that motivated recording labels at all.
+        fileprivate var recordedValue: Any {
+            switch self {
+            case .string(let s): return s
+            case .bool(let b):   return b
+            case .int(let i):    return i
+            case .double(let d): return d
+            }
+        }
     }
 
     static func event(
@@ -40,7 +52,13 @@ enum Telemetry {
         case .warning: mapped = .warning
         case .error:   mapped = .error
         }
-        RTCTelemetry.track(mapped, name, props.merging(common()) { current, _ in current })
+        let merged = props.merging(common()) { current, _ in current }
+        TelemetryRecorder.shared.record(
+            channel: "event",
+            name: name,
+            fields: ["level": String(describing: level), "props": merged]
+        )
+        RTCTelemetry.track(mapped, name, merged)
     }
 
     static func metric(
@@ -49,6 +67,9 @@ enum Telemetry {
     ) {
         var merged = props.merging(common()) { current, _ in current }
         merged["telemetry_kind"] = "metric"
+        TelemetryRecorder.shared.record(
+            channel: "event", name: name, fields: ["level": "info", "props": merged]
+        )
         RTCTelemetry.track(.info, name, merged)
     }
 
@@ -69,7 +90,92 @@ enum Telemetry {
     ) {
         var merged = labels.mapValues { $0.spiValue }
         merged["service_module"] = .string("rtc")
+        TelemetryRecorder.shared.record(
+            channel: "metric",
+            name: name,
+            fields: [
+                "value": value,
+                // Recorded as the host receives them, so a label that is meant
+                // to stay a number is visibly still a number here.
+                "labels": labels.mapValues { $0.recordedValue }
+                    .merging(["service_module": "rtc"]) { current, _ in current },
+            ]
+        )
         RTCTelemetry.metric(name, value, labels: merged)
+    }
+
+    /// One round of playback, as a trace.
+    ///
+    /// Wraps the host handle so spans are mirrored alongside the other three
+    /// channels. Without this the trace would be the one channel absent from
+    /// the local file, and it is the channel that carries the round's shape.
+    static func startPlaybackTrace(
+        _ conversationId: String,
+        startTimeMs: Int64?,
+        attrs: [String: Any] = [:]
+    ) -> PlaybackTrace? {
+        TelemetryRecorder.shared.record(
+            channel: "trace",
+            name: "playback_trace_start",
+            fields: [
+                "conversation_id": conversationId,
+                "start_ms": startTimeMs as Any,
+                "attrs": attrs,
+            ]
+        )
+        // Recorded before the guard: a trace that never starts because tracing
+        // is off is itself the finding, and it would be invisible otherwise.
+        guard let inner = RTCTelemetry.startPlaybackTrace(
+            conversationId, startTimeMs: startTimeMs, attrs: attrs
+        ) else { return nil }
+        return PlaybackTrace(inner, conversationId: conversationId)
+    }
+
+    /// Recording wrapper around the host's trace handle.
+    final class PlaybackTrace {
+        private let inner: RTCTelemetry.PlaybackTrace
+        private let conversationId: String
+
+        fileprivate init(_ inner: RTCTelemetry.PlaybackTrace, conversationId: String) {
+            self.inner = inner
+            self.conversationId = conversationId
+        }
+
+        func span(
+            _ name: String,
+            _ startMs: Int64,
+            _ endMs: Int64,
+            _ attrs: [String: Any] = [:],
+            isError: Bool = false
+        ) {
+            TelemetryRecorder.shared.record(
+                channel: "trace",
+                name: "span",
+                fields: [
+                    "conversation_id": conversationId,
+                    "span": name,
+                    "start_ms": startMs,
+                    "end_ms": endMs,
+                    "dur_ms": endMs - startMs,
+                    "is_error": isError,
+                    "attrs": attrs,
+                ]
+            )
+            inner.span(name, startMs, endMs, attrs, isError: isError)
+        }
+
+        func end(endTimeMs: Int64? = nil, attrs: [String: Any] = [:]) {
+            TelemetryRecorder.shared.record(
+                channel: "trace",
+                name: "playback_trace_end",
+                fields: [
+                    "conversation_id": conversationId,
+                    "end_ms": endTimeMs as Any,
+                    "attrs": attrs,
+                ]
+            )
+            inner.end(endTimeMs: endTimeMs, attrs: attrs)
+        }
     }
 
     private static func common() -> [String: Sendable] {

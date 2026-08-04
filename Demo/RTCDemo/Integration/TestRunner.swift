@@ -397,6 +397,7 @@ final class HookableProvider: RTCProvider {
     }
 
     func getNativeClient() -> Any? { underlying.getNativeClient() }
+    func getTransportStats() -> TransportStats? { underlying.getTransportStats() }
 
     fileprivate func tickAnimationFrame() {
         animationFrameCount += 1

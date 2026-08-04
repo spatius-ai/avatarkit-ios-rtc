@@ -94,6 +94,12 @@ public enum AvatarPlayerEvent: Sendable {
     // Event subscribers
     private var subscribers: [(AvatarPlayerEvent) -> Void] = []
 
+    // Transport statistics sampling
+    private static let TRANSPORT_STATS_INTERVAL_NS: UInt64 = 2_000_000_000
+    private var transportStatsTask: Task<Void, Never>?
+    /// Last (packetsLost, packetsReceived) reading, for delta computation.
+    private var previousTransportCounters: (lost: Int?, received: Int?)?
+
     public init(
         provider: RTCProvider,
         avatarView: AvatarView,
@@ -147,6 +153,7 @@ public enum AvatarPlayerEvent: Sendable {
             reconnectCount = 0
             conversationCount = 0
             resetStreamStats()
+            startTransportStatsSampling()
             Telemetry.event("rtc_connect_success", level: .info, [
                 "provider": providerName,
                 "duration": Int(nowMs() - connectStartTime),
@@ -199,6 +206,7 @@ public enum AvatarPlayerEvent: Sendable {
             reconnectCount = 0
             conversationCount = 0
             resetStreamStats()
+            startTransportStatsSampling()
             Telemetry.event("rtc_attach_success", level: .info, ["provider": providerName])
         } catch {
             Telemetry.event("rtc_attach_failed", level: .error, [
@@ -214,6 +222,7 @@ public enum AvatarPlayerEvent: Sendable {
     /// host's engine (no leaveChannel / destroy).
     public func detach() async {
         guard _isConnected, let agora = provider as? AgoraProvider else { return }
+        stopTransportStatsSampling()
         agora.detachExternalEngine()
         animationHandler.dispose()
         await playTransitionToIdle()
@@ -243,6 +252,7 @@ public enum AvatarPlayerEvent: Sendable {
             await unpublishAudio()
         }
 
+        stopTransportStatsSampling()
         let summary = animationHandler.getSessionSummary()
         await provider.disconnect()
         animationHandler.dispose()
@@ -472,6 +482,88 @@ public enum AvatarPlayerEvent: Sendable {
 
     // MARK: - Stream stats aggregation
 
+    // MARK: - Transport statistics
+
+    /// Poll the transport for what the network stack sees, every two seconds.
+    ///
+    /// Distinct from the stream stats, which are counted from frame sequence
+    /// numbers: ALR sends every frame twice, so most losses are repaired before
+    /// the application layer notices them. The gap between the two is the point
+    /// — it says how much work the redundancy is doing.
+    private func startTransportStatsSampling() {
+        stopTransportStatsSampling()
+        previousTransportCounters = nil
+        transportStatsTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: Self.TRANSPORT_STATS_INTERVAL_NS)
+                guard let self, !Task.isCancelled else { return }
+                self.sampleTransportStats()
+            }
+        }
+    }
+
+    private func stopTransportStatsSampling() {
+        transportStatsTask?.cancel()
+        transportStatsTask = nil
+    }
+
+    private func sampleTransportStats() {
+        guard let read = provider.getTransportStats() else { return }
+        let labels: [String: Telemetry.Label] = ["provider": .string(providerName)]
+
+        let previous = previousTransportCounters
+        previousTransportCounters = (read.packetsLost, read.packetsReceived)
+
+        // The first sample of a connection is a baseline, not a delta: its
+        // counters are totals from before we started watching, and reporting
+        // them as one window's worth would post a burst of loss that never
+        // happened.
+        if let previous {
+            var lostDelta: Int?
+            var recvDelta: Int?
+            if let p = previous.lost, let c = read.packetsLost {
+                lostDelta = Self.nonNegativeDelta(current: c, previous: p)
+            }
+            if let p = previous.received, let c = read.packetsReceived {
+                recvDelta = Self.nonNegativeDelta(current: c, previous: p)
+            }
+
+            if let lostDelta {
+                Telemetry.recordMetric("rtc_transport_rtp_packets_lost", Double(lostDelta), labels: labels)
+            }
+            // Loss over this window specifically. Providers reporting their own
+            // rate are preferred (below); this is the fallback for those exposing
+            // only counters, and unlike a lifetime ratio it still shows a burst.
+            if let lostDelta, let recvDelta, read.lossRatePct == nil {
+                let total = lostDelta + recvDelta
+                if total > 0 {
+                    Telemetry.recordMetric(
+                        "rtc_transport_rtp_loss_rate_pct",
+                        (Double(lostDelta) / Double(total) * 100).rounded(),
+                        labels: labels
+                    )
+                }
+            }
+        }
+
+        if let v = read.lossRatePct {
+            Telemetry.recordMetric("rtc_transport_rtp_loss_rate_pct", Double(v), labels: labels)
+        }
+        if let v = read.rttMs {
+            Telemetry.recordMetric("rtc_transport_rtt_ms", Double(v), labels: labels)
+        }
+        if let v = read.jitterMs {
+            Telemetry.recordMetric("rtc_transport_jitter_ms", Double(v), labels: labels)
+        }
+    }
+
+    /// Delta between two readings of a cumulative counter. A renegotiated
+    /// transport restarts from zero; treating that as a large negative delta
+    /// would be worse than treating the new value as the delta itself.
+    private static func nonNegativeDelta(current: Int, previous: Int) -> Int {
+        current >= previous ? current - previous : current
+    }
+
     private func resetStreamStats() {
         streamStats = StreamStatsAccumulator()
         previousCounters = nil
@@ -487,6 +579,17 @@ public enum AvatarPlayerEvent: Sendable {
         streamStats.framesDropped += deltas.dropped
         streamStats.framesOutOfOrder += deltas.oo
         streamStats.framesDuplicate += deltas.dup
+
+        // Application-layer counters, deliberately paired with the
+        // rtc_transport_rtp_* series: these count frames that failed to reach
+        // the screen, those count packets lost on the wire. A packet lost in
+        // transit but rebuilt from ALR redundancy shows up there and not here,
+        // so the gap between the two series is the redundancy doing its job.
+        let metricLabels: [String: Telemetry.Label] = ["provider": .string(providerName)]
+        Telemetry.recordMetric("rtc_transport_packets_lost", Double(deltas.lost), labels: metricLabels)
+        Telemetry.recordMetric("rtc_transport_packets_recovered", Double(deltas.recovered), labels: metricLabels)
+        Telemetry.recordMetric("rtc_transport_packets_dropped", Double(deltas.dropped), labels: metricLabels)
+        Telemetry.recordMetric("rtc_transport_packets_out_of_order", Double(deltas.oo), labels: metricLabels)
 
         if deltas.lost > 0 || deltas.recovered > 0 || deltas.dropped > 0 ||
             deltas.oo > 0 || deltas.dup > 0 {

@@ -379,6 +379,62 @@ import AvatarKitAgoraBridge
         }
     }
 
+    // MARK: - Transport statistics
+
+    // Refreshed by the stats delegates (every ~2s). -1 means "not reported yet"
+    // and is left out of TransportStats rather than surfaced as a zero, which
+    // would read as a flawless link.
+    private var lastVideoLossRatePct = -1
+    private var lastVideoFrozenTimeMs = -1
+    private var lastAudioJitterBufMs = -1
+    private var lastRttMs = -1
+
+    /// Transport-level view of the inbound stream.
+    ///
+    /// Agora reports rates over its own recent window rather than cumulative
+    /// packet counters, so the rate fields are filled and the counters are not —
+    /// which is the better half of the trade: a lifetime ratio flattens a burst
+    /// of loss into nothing.
+    ///
+    /// Jitter comes from the audio pipeline's jitter buffer depth. There is no
+    /// separate video jitter figure, and the two share a link, so it stands in
+    /// for both.
+    public override func getTransportStats() -> TransportStats? {
+        if lastVideoLossRatePct < 0 && lastRttMs < 0 && lastAudioJitterBufMs < 0 { return nil }
+        return TransportStats(
+            lossRatePct: lastVideoLossRatePct >= 0 ? lastVideoLossRatePct : nil,
+            rttMs: lastRttMs >= 0 ? lastRttMs : nil,
+            jitterMs: lastAudioJitterBufMs >= 0 ? lastAudioJitterBufMs : nil,
+            freezeTimeSec: lastVideoFrozenTimeMs >= 0 ? lastVideoFrozenTimeMs / 1000 : nil
+        )
+    }
+
+    nonisolated public func rtcEngine(_ engine: AgoraRtcEngineKit, remoteVideoStats stats: AgoraRtcRemoteVideoStats) {
+        let loss = Int(stats.packetLossRate)
+        let frozen = Int(stats.totalFrozenTime)
+        Task { @MainActor [weak self] in
+            self?.lastVideoLossRatePct = loss
+            self?.lastVideoFrozenTimeMs = frozen
+        }
+    }
+
+    nonisolated public func rtcEngine(_ engine: AgoraRtcEngineKit, remoteAudioStats stats: AgoraRtcRemoteAudioStats) {
+        let jitter = Int(stats.jitterBufferDelay)
+        Task { @MainActor [weak self] in
+            self?.lastAudioJitterBufMs = jitter
+        }
+    }
+
+    nonisolated public func rtcEngine(_ engine: AgoraRtcEngineKit, reportRtcStats stats: AgoraChannelStats) {
+        // Channel-wide stats; gatewayRtt is the round trip to Agora's edge,
+        // which is the closest thing available to a transport RTT here.
+        let rtt = Int(stats.gatewayRtt)
+        guard rtt > 0 else { return }
+        Task { @MainActor [weak self] in
+            self?.lastRttMs = rtt
+        }
+    }
+
     // MARK: - AgoraRtcEngineDelegate
 
     private var joinContinuation: CheckedContinuation<Void, Error>?

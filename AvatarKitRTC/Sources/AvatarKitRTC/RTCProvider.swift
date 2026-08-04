@@ -34,6 +34,55 @@ import Foundation
     }
 }
 
+/// What the transport itself reports about the inbound stream, as opposed to
+/// `RTCStreamStats`, which is counted in the application layer from the sequence
+/// numbers carried in each frame.
+///
+/// The two answer different questions, and the gap between them is the point:
+/// ALR sends every frame twice, so a packet lost in transit is usually rebuilt
+/// from the redundancy and never shows up in the application-layer counters.
+/// `RTCStreamStats.framesLost` therefore means "lost badly enough to affect
+/// playback", while `packetsLost` here means "lost on the wire at all". Only the
+/// latter says anything about the link.
+///
+/// Every field is optional: providers expose different subsets, and a figure
+/// that cannot be obtained is left out rather than reported as zero.
+///
+/// Aligned with web's `TransportStats` and Android's `TransportStats`.
+public struct TransportStats: Sendable {
+    /// Cumulative packets lost on the inbound stream.
+    public var packetsLost: Int?
+    /// Cumulative packets received on the inbound stream.
+    public var packetsReceived: Int?
+    /// Loss rate over the provider's own recent window, in percent. Not derived
+    /// from the cumulative counters above: a rate computed over the whole
+    /// connection flattens a burst of loss into nothing.
+    public var lossRatePct: Int?
+    /// Round-trip time to the server, in ms. Instantaneous, not cumulative.
+    public var rttMs: Int?
+    /// Inbound jitter, in ms. Instantaneous, not cumulative.
+    public var jitterMs: Int?
+    /// Seconds the remote video has been frozen, cumulative. The provider's own
+    /// measure, independent of the stall runs the playback clock records.
+    public var freezeTimeSec: Int?
+
+    public init(
+        packetsLost: Int? = nil,
+        packetsReceived: Int? = nil,
+        lossRatePct: Int? = nil,
+        rttMs: Int? = nil,
+        jitterMs: Int? = nil,
+        freezeTimeSec: Int? = nil
+    ) {
+        self.packetsLost = packetsLost
+        self.packetsReceived = packetsReceived
+        self.lossRatePct = lossRatePct
+        self.rttMs = rttMs
+        self.jitterMs = jitterMs
+        self.freezeTimeSec = freezeTimeSec
+    }
+}
+
 public enum RTCProviderError: LocalizedError {
     case externalAudioNotSupported
 
@@ -97,6 +146,10 @@ public enum RTCProviderEvent: Sendable {
     /// Listen to provider lifecycle events.
     func setEventHandler(_ handler: @escaping @MainActor (RTCProviderEvent) -> Void)
 
+    /// What the transport reports about the inbound stream, or nil when the
+    /// provider cannot measure it (and always before a track is subscribed).
+    func getTransportStats() -> TransportStats?
+
     /// The underlying native RTC client, or nil if not connected — e.g.
     /// `AgoraProvider` returns its `AgoraRtcEngineKit`. Lets advanced callers
     /// reach provider-specific features not exposed through the unified API.
@@ -126,6 +179,16 @@ public enum RTCProviderEvent: Sendable {
 
     /// Default: no native client exposed. Providers override to return theirs.
     open func getNativeClient() -> Any? { nil }
+
+    /// Default: nothing measured. Providers override to report their transport.
+    ///
+    /// Declared here rather than left to the protocol extension's default. A
+    /// subclass method that only *looks* like an override — no `override`
+    /// keyword, because there was nothing in the class to override — does not
+    /// enter the class's vtable, so `AgoraProvider.getTransportStats()` was
+    /// never reached through a `RTCProvider`-typed reference and every
+    /// transport metric silently reported nothing.
+    open func getTransportStats() -> TransportStats? { nil }
 
     open func connect(_ config: RTCConnectionConfig) async throws {
         fatalError("subclass must override connect")

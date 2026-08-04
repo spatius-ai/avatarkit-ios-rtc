@@ -98,6 +98,8 @@ final class MockRTCProvider: RTCProvider {
     }
 
     func getNativeClient() -> Any? { nil }
+    /// Nothing to measure: the mock has no transport.
+    func getTransportStats() -> TransportStats? { nil }
 
     // MARK: - Injection API (test-only)
 

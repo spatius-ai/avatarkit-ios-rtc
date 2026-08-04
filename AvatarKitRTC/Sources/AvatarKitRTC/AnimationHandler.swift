@@ -1,5 +1,5 @@
 import Foundation
-import AvatarKit
+@_spi(RTC) import AvatarKit
 
 /// Renderer abstraction injected by AvatarPlayer. Adapts AvatarView's
 /// single-frame APIs to the surface AnimationHandler needs. Kept as a
@@ -245,6 +245,9 @@ public struct AnimationSessionSummary: Sendable {
     private var conversationQuality = QualityStats()
     /// Frames skipped without ever rendering, this round.
     private var conversationSkipped = 0
+    /// Locally minted id for this round, used to correlate its event, metrics
+    /// and trace. Not the server's conversation id — see `ConversationId`.
+    private var conversationId = ""
 
     // Cumulative session stats
     private var cumulativeTotalFrames = 0
@@ -595,6 +598,7 @@ public struct AnimationSessionSummary: Sendable {
         hasReportedStall = false
         if conversationStartTime == 0 {
             conversationStartTime = nowMs()
+            conversationId = ConversationId.generate()
         }
         startWatchdog()
         startPlaybackStats()
@@ -662,7 +666,20 @@ public struct AnimationSessionSummary: Sendable {
         }
         if playbackFrameCount == 0 { return }
 
-        let fps = playbackFrameCount
+        // Frames per second over the window's *actual* span, not per tick. The
+        // sampler fires every second, but the last window of a round is cut
+        // short by the end transition, and a partial window counted as a whole
+        // second reports a rate the viewer never saw — a 3s round measured
+        // 20fps against a steady 25. Short rounds are hurt worst, which is most
+        // of them on RTC.
+        let elapsedMs = playbackFrameTimestamps.count >= 2
+            ? playbackFrameTimestamps[playbackFrameTimestamps.count - 1] - playbackFrameTimestamps[0]
+            : 0
+        // One frame spans no time, so a single-frame window has no rate to
+        // report; fall back to the count rather than dividing by zero.
+        let fps = elapsedMs > 0
+            ? Int((Double(playbackFrameCount - 1) / elapsedMs * 1000).rounded())
+            : playbackFrameCount
         let totalExpected = playbackFrameCount + playbackGapCount
         let lossRate: Double = totalExpected > 0 ? (Double(playbackGapCount) / Double(totalExpected)) * 100 : 0
 
@@ -710,8 +727,11 @@ public struct AnimationSessionSummary: Sendable {
         // by an aggregated duration metric divides one distribution's P95 by
         // another's, which answers nothing. A ratio is only meaningful while
         // both numbers still belong to the same round.
-        let stallRatePct: Double = durationMs > 0 ?
-            (stallTotalMs / Double(durationMs) * 100 * 10).rounded() / 10 : 0
+        // Whole percent: the metrics backend cannot store fractional values, so
+        // ratios are rounded here and precise figures are recovered from the
+        // integer numerator/denominator that ship alongside.
+        let stallRatePct: Int = durationMs > 0 ?
+            Int((stallTotalMs / Double(durationMs) * 100).rounded()) : 0
 
         // Variable-length detail travels as JSON strings: the log backend
         // flattens nested structures, and a flattened array of objects is
@@ -779,6 +799,7 @@ public struct AnimationSessionSummary: Sendable {
             stallMaxMs: stallMaxMs,
             stallRatePct: stallRatePct
         )
+        emitPlaybackTrace(durationMs: durationMs, stallTotalMs: stallTotalMs)
 
         cumulativeTotalFrames += conversationFrameCount
         cumulativeLost += conversationLost
@@ -796,6 +817,7 @@ public struct AnimationSessionSummary: Sendable {
         conversationStartTime = 0
         conversationJitterStats = JitterStatsCounters()
         conversationQuality = QualityStats()
+        conversationId = ""
         lastRenderedPayload = nil
     }
 
@@ -812,7 +834,7 @@ public struct AnimationSessionSummary: Sendable {
         skipRate: Int,
         stallTotalMs: Double,
         stallMaxMs: Double,
-        stallRatePct: Double
+        stallRatePct: Int
     ) {
         let quality = conversationQuality
         let labels: [String: Telemetry.Label] = [
@@ -831,7 +853,7 @@ public struct AnimationSessionSummary: Sendable {
         // The share, not just the totals: a 500ms freeze means something very
         // different in a 2s round than in a 60s one, and only the ratio makes
         // those two comparable in one distribution.
-        Telemetry.recordMetric("rtc_playback_stall_rate_pct", stallRatePct, labels: labels)
+        Telemetry.recordMetric("rtc_playback_stall_rate_pct", Double(stallRatePct), labels: labels)
         Telemetry.recordMetric("rtc_playback_tail_discarded", Double(quality.tailDiscarded), labels: labels)
         // Shortfall rather than the raw counts: zero is the healthy value, so
         // any non-zero reading is a transition the viewer saw cut short.
@@ -844,6 +866,120 @@ public struct AnimationSessionSummary: Sendable {
             "rtc_playback_end_transition_missing",
             Double(max(0, quality.endTransitionExpected - quality.endTransitionRendered)),
             labels: labels
+        )
+    }
+
+    /// Emit the round as a trace: a root span covering the round, with a child
+    /// span per stall and per skipped range, so the waterfall shows where
+    /// playback actually broke down — which the aggregate counts cannot convey.
+    ///
+    /// The round is laid out as one unbroken chain of spans — transitions,
+    /// playing stretches and freezes end to end, adding up to the full duration
+    /// — rather than a few isolated markers floating over an empty track.
+    private func emitPlaybackTrace(durationMs: Int, stallTotalMs: Double) {
+        guard !conversationId.isEmpty, conversationStartTime > 0 else { return }
+
+        let quality = conversationQuality
+        let startMs = Int64(conversationStartTime)
+        let endMs = startMs + Int64(durationMs)
+
+        guard let trace = Telemetry.startPlaybackTrace(
+            conversationId,
+            startTimeMs: startMs,
+            attrs: [
+                "provider": config.providerName,
+                "end_reason": quality.endReason.rawValue,
+            ]
+        ) else { return }
+
+        let startTransitionEnd = quality.startTransitionEndedAt > 0
+            ? Int64(quality.startTransitionEndedAt) : startMs
+        if quality.startTransitionBeganAt > 0 {
+            let began = Int64(quality.startTransitionBeganAt)
+            trace.span(
+                "start_transition", began, startTransitionEnd,
+                [
+                    "dur_ms": Int(startTransitionEnd - began),
+                    "frames_expected": quality.startTransitionExpected,
+                    "frames_rendered": quality.startTransitionRendered,
+                ],
+                // A transition cut short is the visible jump into speech.
+                isError: quality.startTransitionRendered < quality.startTransitionExpected
+            )
+        }
+
+        // Animation frames run from the end of the start transition until the
+        // end transition takes over.
+        let speakingEnd = quality.endTransitionBeganAt > 0
+            ? Int64(quality.endTransitionBeganAt) : endMs
+        var cursor = startTransitionEnd
+        var playIdx = 0
+        var stallIdx = 0
+        for run in quality.stalls {
+            let runStart = max(Int64(run.startedAt), cursor)
+            let runEnd = min(Int64(run.endedAt), speakingEnd)
+            if runStart > cursor {
+                playIdx += 1
+                trace.span("playing_\(playIdx)", cursor, runStart, ["dur_ms": Int(runStart - cursor)])
+            }
+            if runEnd > runStart {
+                stallIdx += 1
+                trace.span(
+                    "stall_\(stallIdx)", runStart, runEnd,
+                    [
+                        "seq": run.waitingForSeq,
+                        "dur_ms": Int(runEnd - runStart),
+                        "ticks": run.ticks,
+                        "starved": run.startedStarved,
+                    ],
+                    isError: true
+                )
+            }
+            cursor = runEnd
+        }
+        if speakingEnd > cursor {
+            playIdx += 1
+            trace.span("playing_\(playIdx)", cursor, speakingEnd, ["dur_ms": Int(speakingEnd - cursor)])
+        }
+
+        if quality.endTransitionBeganAt > 0 {
+            let began = Int64(quality.endTransitionBeganAt)
+            trace.span(
+                "end_transition", began, endMs,
+                [
+                    "dur_ms": Int(endMs - began),
+                    "frames_expected": quality.endTransitionExpected,
+                    "frames_rendered": quality.endTransitionRendered,
+                ],
+                isError: quality.endTransitionRendered < quality.endTransitionExpected
+            )
+        }
+
+        // Placed at the moment the drain loop gave up on the missing frames, so
+        // each one lines up with the stall it ended.
+        for (idx, range) in quality.skipped.enumerated() {
+            let at = Int64(range.at)
+            trace.span(
+                "skip_\(idx + 1)", at, at,
+                [
+                    "from_seq": range.from,
+                    "to_seq": range.to,
+                    "frames": range.to - range.from + 1,
+                ],
+                isError: true
+            )
+        }
+
+        trace.end(
+            endTimeMs: endMs,
+            attrs: [
+                "frame_count": conversationFrameCount,
+                "skipped_frames": conversationSkipped,
+                "stall_count": quality.stalls.count,
+                "stall_total_ms": Int(stallTotalMs.rounded()),
+                "tail_intact": quality.tailIntact ?? false,
+                "duration_ms": durationMs,
+            ]
         )
     }
 
@@ -1247,6 +1383,11 @@ public struct AnimationSessionSummary: Sendable {
         let frame = transitionFrames[transitionFrameIndex]
         isIdle = false
         renderer.renderFrame(frame, startIdle: false)
+        // The picture moved, so any freeze is over — a transition frame ends it
+        // exactly as a stream frame does. Closing on the render itself rather
+        // than when the transition was booked keeps the run's end at the moment
+        // the viewer saw motion again.
+        closeStallRun()
         logRenderedFrame(source: "transition", seq: nil, isRecovered: false)
         transitionFrameIndex += 1
 
