@@ -59,6 +59,10 @@ public struct TransportStats: Sendable {
     /// connection flattens a burst of loss into nothing.
     public var lossRatePct: Int?
     /// Round-trip time to the server, in ms. Instantaneous, not cumulative.
+    ///
+    /// Agora's native SDK reports only a one-way client-to-server delay, which
+    /// the provider doubles so this always means a round trip — the same thing
+    /// web reports — rather than leaving the platforms half an order apart.
     public var rttMs: Int?
     /// Inbound jitter, in ms. Instantaneous, not cumulative.
     public var jitterMs: Int?

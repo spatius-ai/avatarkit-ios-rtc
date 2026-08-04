@@ -426,9 +426,17 @@ import AvatarKitAgoraBridge
     }
 
     nonisolated public func rtcEngine(_ engine: AgoraRtcEngineKit, reportRtcStats stats: AgoraChannelStats) {
-        // Channel-wide stats; gatewayRtt is the round trip to Agora's edge,
-        // which is the closest thing available to a transport RTT here.
-        let rtt = Int(stats.gatewayRtt)
+        // Channel-wide stats. lastmileDelay is the one-way client-to-server
+        // delay, doubled here so the figure means the same thing as web's:
+        // Agora's native SDK has no round-trip number to the server, and
+        // gatewayRtt — despite the name — measures the hop to the *local router*
+        // and is disabled outright on iOS 14+ (a constant 0 on Android too, so
+        // nothing was ever reported from it).
+        //
+        // Doubling assumes a symmetric path, which is not exactly true but is
+        // far closer than leaving the two platforms half an order apart:
+        // measured ~22ms one-way here, against 14ms of round trip from web.
+        let rtt = Int(stats.lastmileDelay) * 2
         guard rtt > 0 else { return }
         Task { @MainActor [weak self] in
             self?.lastRttMs = rtt
