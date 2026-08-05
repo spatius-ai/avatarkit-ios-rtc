@@ -1,5 +1,49 @@
 # Changelog
 
+## [1.0.0-beta.7] — 2026-08-06
+
+### Breaking
+
+- **`AvatarSDK` must be initialized with `drivingServiceMode: .rtc`**. The value is
+  checked when constructing `AvatarPlayer`, and any other mode aborts outright.
+  There was no check before, which left RTC session telemetry indistinguishable
+  from that of a plain AvatarKit integration.
+
+  ```swift
+  AvatarSDK.initialize(
+      appID: appID,
+      configuration: Configuration(drivingServiceMode: .rtc)
+  )
+  ```
+
+### Added
+
+- **`AvatarPlayer.attach(to:)` / `detach()`** — support for a host-owned Agora
+  engine. Integrators that already own and manage an `AgoraRtcEngineKit` can hand
+  the engine to the SDK: the SDK only borrows it, installing the encoded-frame SEI
+  observer and enabling SEI. It does not create, join a channel with, or destroy
+  the engine.
+
+### Changed
+
+- Bumped the host SDK dependency to `1.3.1-beta.2` (SPM and CocoaPods in sync).
+- Corrected the CocoaPods host SDK pod name to `SpatiusAvatarKit` — the name
+  `AvatarKit` is already taken by someone else, so the previous declaration pulled
+  in an unrelated package. `import AvatarKit` is unaffected.
+- Transition frames and stream frames now share a single scheduling clock, aligned
+  with web, for steadier playback pacing.
+
+### Fixed
+
+- **`detach()` picture jump** — it used to cut straight to the idle start frame,
+  producing a visible jump when tearing down a host-engine session; it now matches
+  `disconnect()` and plays a smooth transition first.
+- **Stall and frame-rate accounting** — stall intervals used to be settled only
+  when stream frames rendered, so the trailing transition frames were missed;
+  transport-layer stats never actually took effect.
+- **Round-trip time (RTT)** — now derived from `lastmileDelay` and converted to a
+  round-trip value; previously not a single sample was reported successfully.
+
 ## [1.0.0-beta.6] — 2026-07-09
 
 ### Changed
