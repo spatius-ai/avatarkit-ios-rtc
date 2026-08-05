@@ -6,6 +6,7 @@
 enum Telemetry {
     enum Level { case info, warning, error }
 
+
     /// Low-cardinality metric label.
     ///
     /// Declared here rather than aliased to the host SDK's `LabelValue`: that

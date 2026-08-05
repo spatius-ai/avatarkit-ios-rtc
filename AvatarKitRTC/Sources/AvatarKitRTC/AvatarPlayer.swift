@@ -100,11 +100,48 @@ public enum AvatarPlayerEvent: Sendable {
     /// Last (packetsLost, packetsReceived) reading, for delta computation.
     private var previousTransportCounters: (lost: Int?, received: Int?)?
 
+    /// Fail fast unless avatarkit was initialized with ``DrivingServiceMode/rtc``.
+    ///
+    /// The mode is what every telemetry record carries as `dsm`. RTC-driven
+    /// sessions are indistinguishable from ordinary `backend` ones without it, so
+    /// a wrong mode here silently poisons the dashboards for the whole session —
+    /// and silently, in a way nobody notices until someone tries to read RTC
+    /// numbers weeks later. That is worth refusing to start over: the fix is one
+    /// argument at `initialize`, and it can only be applied before any data is
+    /// produced.
+    ///
+    /// Traps rather than warns deliberately: with a warning the misconfiguration
+    /// ships. `preconditionFailure` (not `assertionFailure`) so it also traps in
+    /// release builds — an integrator shipping the wrong mode is exactly the case
+    /// this exists to catch, and that build is a release one.
+    ///
+    /// Note `AvatarSDK.configuration` is non-optional with a `.direct` default, so
+    /// "never initialized" and "initialized with the default mode" look identical
+    /// here; the message covers both.
+    private static func assertRtcMode() {
+        let mode = AvatarSDK.configuration.drivingServiceMode
+        guard mode != .rtc else { return }
+        preconditionFailure(
+            """
+            AvatarPlayer requires avatarkit to be initialized with \
+            drivingServiceMode: .rtc, but it is .\(mode.rawValue). All telemetry from \
+            this session would be reported under that mode, making RTC traffic \
+            indistinguishable from it. Call AvatarSDK.initialize(appID:configuration:) \
+            with drivingServiceMode: .rtc before constructing AvatarPlayer.
+            """
+        )
+    }
+
     public init(
         provider: RTCProvider,
         avatarView: AvatarView,
         options: AvatarPlayerOptions = AvatarPlayerOptions()
     ) {
+        // Before anything else: a wrong driving mode mislabels every record this
+        // session emits, and it can only be corrected at AvatarSDK.initialize().
+        Self.assertRtcMode()
+        TelemetryIdentity.claim()
+
         self.provider = provider
         self.avatarView = avatarView
         self.providerName = provider.name
