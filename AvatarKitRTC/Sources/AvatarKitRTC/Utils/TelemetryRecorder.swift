@@ -15,10 +15,9 @@ import Foundation
 /// is swallowed rather than surfaced, because a diagnostic must not be able to
 /// break the playback path it is observing.
 ///
-/// **Capture is always on** (bounded, in memory) so a round that turns out to
-/// be interesting can be dumped after the fact — a run worth looking at is
-/// usually only recognised once it has already happened. Nothing leaves the
-/// process until `write()` is called.
+/// **Disabled by default.** `start()` turns it on; a shipped integration pays
+/// nothing for it and would never call `write()` to get the data back out.
+/// Nothing leaves the process until `write()` is called.
 public final class TelemetryRecorder: @unchecked Sendable {
     public static let shared = TelemetryRecorder()
 
@@ -30,8 +29,27 @@ public final class TelemetryRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var records: [String] = []
     private var dropped = 0
+    private var isEnabled = false
 
     private init() {}
+
+    /// Begin a fresh capture, discarding anything held from a previous run.
+    public static func start() {
+        let r = TelemetryRecorder.shared
+        r.lock.lock()
+        defer { r.lock.unlock() }
+        r.records = []
+        r.dropped = 0
+        r.isEnabled = true
+    }
+
+    /// Stop capturing. Anything already captured stays readable via `write()`.
+    public static func stop() {
+        let r = TelemetryRecorder.shared
+        r.lock.lock()
+        defer { r.lock.unlock() }
+        r.isEnabled = false
+    }
 
     // MARK: - Capture
 
@@ -39,6 +57,12 @@ public final class TelemetryRecorder: @unchecked Sendable {
     /// what makes the file answer "did this land as a metric or only as an
     /// event" — a distinction the payloads themselves do not carry.
     func record(channel: String, name: String, fields: [String: Any]) {
+        // Checked before the JSON work, which is the whole cost when disabled.
+        lock.lock()
+        let enabled = isEnabled
+        lock.unlock()
+        guard enabled else { return }
+
         var payload: [String: Any] = [
             "ts": Int64((Date().timeIntervalSince1970 * 1000).rounded()),
             "channel": channel,

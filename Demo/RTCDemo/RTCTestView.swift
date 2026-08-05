@@ -16,6 +16,7 @@ struct RTCTestView: View {
     @State private var showConfig = false
     @State private var isProbing = false
     @State private var probeFile: URL?
+    @State private var telemetryFile: URL?
     @State private var showProbeShare = false
 
     var body: some View {
@@ -183,10 +184,18 @@ struct RTCTestView: View {
             Button {
                 if isProbing {
                     probeFile = PlaybackProbe.stopAndWrite()
+                    // Exported on the same press so the frame series and the
+                    // telemetry always describe the same run — two buttons
+                    // would eventually be pressed at two different moments.
+                    TelemetryRecorder.stop()
+                    telemetryFile = TelemetryRecorder.write()
                     isProbing = false
-                    showProbeShare = probeFile != nil
+                    showProbeShare = probeFile != nil || telemetryFile != nil
                 } else {
                     PlaybackProbe.start()
+                    // Cleared rather than left to accumulate: a run is only
+                    // readable if it starts empty.
+                    TelemetryRecorder.start()
                     isProbing = true
                 }
             } label: {
@@ -198,9 +207,7 @@ struct RTCTestView: View {
             .tint(isProbing ? .orange : .accentColor)
         }
         .sheet(isPresented: $showProbeShare) {
-            if let probeFile {
-                ShareSheet(items: [probeFile])
-            }
+            ShareSheet(items: [probeFile, telemetryFile].compactMap { $0 })
         }
     }
 
@@ -278,7 +285,7 @@ final class RTCTestViewModel: ObservableObject {
             appID: trimmedApp,
             configuration: Configuration(
                 audioFormat: AudioFormat(sampleRate: 16000),
-                drivingServiceMode: .direct,
+                drivingServiceMode: .rtc,
                 logLevel: .warning
             )
         )
