@@ -24,7 +24,7 @@ let package = Package(
             dependencies: [
                 .product(name: "RtcBasic", package: "AgoraRtcEngine_iOS"),
             ],
-            path: "Sources/AvatarKitAgoraBridge",
+            path: "AvatarKitRTC/Sources/AvatarKitAgoraBridge",
             publicHeadersPath: "include",
             cxxSettings: [
                 .define("OBJC_OLD_DISPATCH_PROTOTYPES", to: "1"),
@@ -38,12 +38,12 @@ let package = Package(
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
                 .product(name: "RtcBasic", package: "AgoraRtcEngine_iOS"),
             ],
-            path: "Sources/AvatarKitRTC"
+            path: "AvatarKitRTC/Sources/AvatarKitRTC"
         ),
         .testTarget(
             name: "AvatarKitRTCTests",
             dependencies: ["AvatarKitRTC"],
-            path: "Tests/AvatarKitRTCTests"
+            path: "AvatarKitRTC/Tests/AvatarKitRTCTests"
         )
     ]
 )
