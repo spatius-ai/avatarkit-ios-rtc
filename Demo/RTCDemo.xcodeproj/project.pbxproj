@@ -117,7 +117,7 @@
 			mainGroup = A1000070;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				A10000E0 /* XCLocalSwiftPackageReference "../AvatarKitRTC" */,
+				A10000E0 /* XCLocalSwiftPackageReference ".." */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A1000080 /* Products */;
@@ -310,9 +310,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		A10000E0 /* XCLocalSwiftPackageReference "../AvatarKitRTC" */ = {
+		A10000E0 /* XCLocalSwiftPackageReference ".." */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../AvatarKitRTC;
+			relativePath = ..;
 		};
 /* End XCLocalSwiftPackageReference section */
 
