@@ -27,7 +27,7 @@ Pod::Spec.new do |spec|
   # The host SDK is published to CocoaPods as SpatiusAvatarKit — `AvatarKit` was
   # already taken by someone else, and depending on that name pulls an unrelated
   # package. Its module_name is still AvatarKit, so imports are unaffected.
-  spec.dependency "SpatiusAvatarKit", "1.3.1-beta.2"
+  spec.dependency "SpatiusAvatarKit", "1.3.2"
   spec.dependency "SwiftProtobuf", "1.30.0"
   spec.dependency "AgoraRtcEngine_iOS", "4.5.2"
 end

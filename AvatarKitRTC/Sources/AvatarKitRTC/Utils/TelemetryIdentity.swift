@@ -17,8 +17,12 @@ import Foundation
 /// declares a ContentProvider to claim the identity before app code runs.)
 enum TelemetryIdentity {
     /// This package's version. Hand-written because a Swift package cannot read
-    /// its own podspec; keep in step with `AvatarKitRTC.podspec`.
-    static let sdkVersion = "1.0.0-beta.6"
+    /// its own podspec; **keep in step with `AvatarKitRTC.podspec`**.
+    ///
+    /// Drifted once already — left at beta.6 through the whole beta.7 release,
+    /// which fails silently: the wrong number simply appears on every record,
+    /// and nothing in the build catches it.
+    static let sdkVersion = "1.0.0-beta.7"
 
     @MainActor static func claim() {
         AvatarSDK.inject([
