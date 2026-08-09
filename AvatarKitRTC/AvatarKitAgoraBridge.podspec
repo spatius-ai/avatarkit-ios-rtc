@@ -1,6 +1,6 @@
 Pod::Spec.new do |spec|
   spec.name         = "AvatarKitAgoraBridge"
-  spec.version      = "1.0.0-beta.7"
+  spec.version      = "1.0.0-beta.8"
   spec.summary      = "ObjC++ bridge exposing Agora's encoded-frame observer to Swift"
   spec.description  = <<-DESC
                       Wraps Agora's C++ IVideoEncodedFrameObserver into a Swift-callable
@@ -8,7 +8,10 @@ Pod::Spec.new do |spec|
                       module (`import AvatarKitAgoraBridge`), matching the SPM target layout.
                       DESC
   spec.homepage     = "https://github.com/spatius-ai/avatarkit-ios-rtc"
-  spec.license      = { :type => "Commercial" }
+  spec.license      = {
+    :type => "Commercial",
+    :text => "Copyright © 2026 Spatius. All rights reserved. Use is subject to the Spatius commercial license agreement."
+  }
   spec.author       = { "Spatius" => "hello@spatialwalk.net" }
   spec.platform     = :ios, "16.0"
   spec.source       = { :git => "https://github.com/spatius-ai/avatarkit-ios-rtc.git", :tag => "v#{spec.version}" }

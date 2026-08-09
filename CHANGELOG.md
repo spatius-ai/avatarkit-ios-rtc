@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.0-beta.8] — 2026-08-09
+
+### Fixed
+
+- **Rounds restarting repeatedly on out-of-order arrival** — under network
+  reordering, a single animation round could be treated as a new round over and
+  over, snapping the picture back to the just-started state each time. Round start
+  and end are now determined solely by the packets that actually mark those
+  boundaries; an idle command that arrives after the round it ends is ignored.
+
+### Changed
+
+- Bumped the host SDK dependency to `1.3.2`.
+
 ## [1.0.0-beta.7] — 2026-08-06
 
 ### Breaking

@@ -1,6 +1,6 @@
 Pod::Spec.new do |spec|
   spec.name         = "AvatarKitRTC"
-  spec.version      = "1.0.0-beta.7"
+  spec.version      = "1.0.0-beta.8"
   spec.summary      = "RTC adapter for AvatarKit"
   spec.description  = <<-DESC
                       AvatarKitRTC bridges audio/animation tracks from RTC providers
@@ -9,7 +9,10 @@ Pod::Spec.new do |spec|
                       feeds animation packets into the AvatarKit player.
                       DESC
   spec.homepage     = "https://github.com/spatius-ai/avatarkit-ios-rtc"
-  spec.license      = { :type => "Commercial" }
+  spec.license      = {
+    :type => "Commercial",
+    :text => "Copyright © 2026 Spatius. All rights reserved. Use is subject to the Spatius commercial license agreement."
+  }
   spec.author       = { "Spatius" => "hello@spatialwalk.net" }
   spec.platform     = :ios, "16.0"
   spec.swift_version = "6.0"
@@ -23,7 +26,7 @@ Pod::Spec.new do |spec|
   # AvatarKitAgoraBridge is a separate pod (not a subspec) so it compiles as its
   # own Clang module — the Swift sources do `import AvatarKitAgoraBridge`, which
   # only resolves against a standalone module, matching the SPM target layout.
-  spec.dependency "AvatarKitAgoraBridge", "1.0.0-beta.7"
+  spec.dependency "AvatarKitAgoraBridge", "1.0.0-beta.8"
   # The host SDK is published to CocoaPods as SpatiusAvatarKit — `AvatarKit` was
   # already taken by someone else, and depending on that name pulls an unrelated
   # package. Its module_name is still AvatarKit, so imports are unaffected.
