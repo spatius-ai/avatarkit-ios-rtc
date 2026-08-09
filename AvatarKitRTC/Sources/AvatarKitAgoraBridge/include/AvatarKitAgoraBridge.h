@@ -8,7 +8,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// video frame. `nalData` is the raw H.264/H.265 bitstream bytes coming off the
 /// network — the caller is responsible for slicing NAL units and extracting
 /// SEI payloads.
-typedef void (^AKAgoraEncodedFrameHandler)(NSData *nalData, NSUInteger uid);
+/// @param captureTimeMs when the server produced the frame, from Agora's
+///   encoded-frame info. Advances with the send order, which is what lets a
+///   genuinely-final idle packet be told from one that merely arrived late.
+typedef void (^AKAgoraEncodedFrameHandler)(NSData *nalData, NSUInteger uid, int64_t captureTimeMs);
 
 /// ObjC wrapper that owns a C++ IVideoEncodedFrameObserver and forwards every
 /// received encoded frame to a Swift block.

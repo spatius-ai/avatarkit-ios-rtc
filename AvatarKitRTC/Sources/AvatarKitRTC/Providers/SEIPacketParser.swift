@@ -41,6 +41,9 @@ import Compression
     private var isInStartTransition = false
     private var isInEndTransition = false
 
+    /// Capture time of the newest non-idle packet seen, for the staleness check.
+    private var lastPacketCaptureTimeMs: Int64 = 0
+
     // Diagnostics
     private var didLogFirstPayload = false
     private var didLogFirstAnimationFrame = false
@@ -76,7 +79,12 @@ import Compression
     /// Feed a raw SEI user_data payload (already past NAL header + payloadType
     /// + payloadSize, EBSP-stripped). Multiple payloads from the same frame
     /// can be fed back-to-back.
-    func handleSEIPayload(_ payload: Data) {
+    ///
+    /// - Parameter captureTimeMs: when the server produced this frame, from the
+    ///   encoded-frame info. Advances with the send order, so it is what tells a
+    ///   genuinely-final idle packet from one that merely arrived late. Zero
+    ///   when unavailable, which disables that check rather than misapplying it.
+    func handleSEIPayload(_ payload: Data, captureTimeMs: Int64 = 0) {
         guard let callbacks else { return }
         totalFrameCount += 1
         intervalFrameCount += 1
@@ -101,6 +109,24 @@ import Compression
                 didLogFirstIdle = true
                 logger.info("First idle packet flags=0x\(String(format: "%02x", flags)) msgLen=\(msgLen)")
             }
+            // An idle packet older than the newest packet already seen was sent
+            // before that one and merely arrived after it. The server's send
+            // order is fixed — idle, round, idle — so a genuine return to idle
+            // can never carry an earlier capture time than the round it ends.
+            // Acting on it would close a round that is still being delivered,
+            // resetting tracking and restarting the jitter buffer mid-speech.
+            //
+            // Only idle is filtered this way: it is the one packet type whose
+            // meaning is "everything before this is over", so a stale one is
+            // actively harmful rather than merely redundant. It also carries no
+            // animation data and takes no part in ALR, so dropping it leaves no
+            // gap behind.
+            if captureTimeMs > 0,
+               lastPacketCaptureTimeMs > 0,
+               captureTimeMs < lastPacketCaptureTimeMs {
+                return
+            }
+
             if !lastWasIdle {
                 lastWasIdle = true
                 isInStartTransition = false
@@ -108,6 +134,12 @@ import Compression
                 callbacks.onIdleStart()
             }
             return
+        }
+
+        // Tracked from non-idle packets only, so a late idle cannot advance the
+        // reference it is checked against.
+        if captureTimeMs > 0 {
+            lastPacketCaptureTimeMs = captureTimeMs
         }
 
         // Take all bytes after the 5-byte header. Server may zero-pad, but msgLen
@@ -178,8 +210,15 @@ import Compression
         }
 
         // Normal animation frame
-        isInStartTransition = false
-        isInEndTransition = false
+        //
+        // The transition latches are deliberately left alone here. Clearing
+        // them treated "a stream frame arrived" as "the transition is over",
+        // which holds only while packets arrive in the order they were sent.
+        // Reordered, a round comes through as T . T . T — and every transition
+        // packet after the first would find the latch cleared and be emitted as
+        // another round start, resetting tracking and restarting the jitter
+        // buffer at a single frame each time. What ends a round is the
+        // transition-end packet, or idle — both of which reset these.
 
         let isFirstFrame = lastWasIdle || isStart
         lastWasIdle = false

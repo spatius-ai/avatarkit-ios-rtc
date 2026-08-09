@@ -17,14 +17,13 @@ public:
                                      const uint8_t *imageBuffer,
                                      size_t length,
                                      const agora::rtc::EncodedVideoFrameInfo &info) override {
-        (void)info;
         if (imageBuffer == nullptr || length == 0) return true;
 
         // Copy into NSData — the buffer is only valid for the duration of this call.
         NSData *data = [NSData dataWithBytes:imageBuffer length:length];
         AKAgoraEncodedFrameHandler handler = owner_.handler;
         if (handler) {
-            handler(data, (NSUInteger)uid);
+            handler(data, (NSUInteger)uid, (int64_t)info.captureTimeMs);
         }
         return true;
     }

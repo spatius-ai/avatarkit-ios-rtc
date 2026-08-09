@@ -320,7 +320,7 @@ import AvatarKitAgoraBridge
         let workQueue = DispatchQueue(label: "ai.spatius.rtc.agora-nal", qos: .userInitiated)
         nonisolated(unsafe) var localFrameCount = 0
         let obs = AKAgoraEncodedFrameObserver()
-        obs.handler = { [weak self] nalData, uid in
+        obs.handler = { [weak self] nalData, uid, captureTimeMs in
             // `nalData` is bridged from NSData to Swift `Data`, which is a
             // value type backed by COW storage. Passing the bridged Data into
             // a dispatch block is safe (and zero-copy in the common case where
@@ -351,7 +351,7 @@ import AvatarKitAgoraBridge
                         self.recordNalDiagnostics(uid: uid, frames: frames, nalBytes: bytes, seiCount: payloads.count, headHex: headHex, diag: diag)
                     }
                     for payload: Data in payloads {
-                        self.parser.handleSEIPayload(payload)
+                        self.parser.handleSEIPayload(payload, captureTimeMs: captureTimeMs)
                     }
                 }
             }
