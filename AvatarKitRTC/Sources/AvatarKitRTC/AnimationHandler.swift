@@ -23,7 +23,7 @@ import Foundation
 /// Configuration for AnimationHandler. Matches web's AnimationHandlerConfig.
 struct AnimationHandlerConfig {
     var transitionStartFrameCount: Int = 8
-    var transitionEndFrameCount: Int = 20
+    var transitionEndFrameCount: Int = 40
     var enableJitterBuffer: Bool = true
     /// Max delay (ms) a frame can sit in the jitter buffer before being rendered.
     /// Also controls how long to wait for a missing frame before skipping ahead.
