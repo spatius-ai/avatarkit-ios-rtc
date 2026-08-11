@@ -113,7 +113,8 @@ enum Telemetry {
     static func startPlaybackTrace(
         _ conversationId: String,
         startTimeMs: Int64?,
-        attrs: [String: Any] = [:]
+        attrs: [String: Any] = [:],
+        serverTraceparent: String? = nil
     ) -> PlaybackTrace? {
         TelemetryRecorder.shared.record(
             channel: "trace",
@@ -127,7 +128,10 @@ enum Telemetry {
         // Recorded before the guard: a trace that never starts because tracing
         // is off is itself the finding, and it would be invisible otherwise.
         guard let inner = RTCTelemetry.startPlaybackTrace(
-            conversationId, startTimeMs: startTimeMs, attrs: attrs
+            conversationId,
+            startTimeMs: startTimeMs,
+            attrs: attrs,
+            serverTraceparent: serverTraceparent
         ) else { return nil }
         return PlaybackTrace(inner, conversationId: conversationId)
     }

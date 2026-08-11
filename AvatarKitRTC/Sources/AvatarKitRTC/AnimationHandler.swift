@@ -249,6 +249,19 @@ public struct AnimationSessionSummary: Sendable {
     /// and trace. Not the server's conversation id — see `ConversationId`.
     private var conversationId = ""
 
+    /// The W3C traceparent the server stamped on this round's animation, or nil
+    /// before one has been seen.
+    ///
+    /// Over RTC the round's id is minted locally and never travels upstream, so
+    /// a trace_id derived from it has no relation to the server's and one round
+    /// reports as two unrelated traces. This is the only thing joining them.
+    ///
+    /// First non-empty wins: every packet of a round carries the same value, so
+    /// pinning the first keeps the trace_id stable even if later ones omit it.
+    /// Cleared per round — carrying one over would file the next round under the
+    /// previous round's trace.
+    private var serverTraceparent: String?
+
     // Cumulative session stats
     private var cumulativeTotalFrames = 0
     private var cumulativeLost = 0
@@ -305,6 +318,14 @@ public struct AnimationSessionSummary: Sendable {
 
         // Ensure session-level watchdog/stats are running even if transition packet was lost.
         ensureSessionActive(frameSeq: frameSeq)
+
+        // Kept trying until one is found rather than only inspecting the first
+        // packet: the round may open with frames the server stamped nothing on,
+        // and giving up after one would lose the trace for the whole round.
+        // Once found the decode stops, so the steady state is one parse a round.
+        if serverTraceparent == nil {
+            serverTraceparent = RTCTelemetry.peekTraceparent(protobufData)
+        }
 
         if config.enableJitterBuffer, let seq = frameSeq {
             bufferFrame(protobufData, seq: seq, isRecovered: isRecovered)
@@ -818,6 +839,7 @@ public struct AnimationSessionSummary: Sendable {
         conversationJitterStats = JitterStatsCounters()
         conversationQuality = QualityStats()
         conversationId = ""
+        serverTraceparent = nil
         lastRenderedPayload = nil
     }
 
@@ -889,7 +911,8 @@ public struct AnimationSessionSummary: Sendable {
             attrs: [
                 "provider": config.providerName,
                 "end_reason": quality.endReason.rawValue,
-            ]
+            ],
+            serverTraceparent: serverTraceparent
         ) else { return }
 
         let startTransitionEnd = quality.startTransitionEndedAt > 0
