@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.0-beta.9] — 2026-08-12
+
+### Fixed
+
+- **Audio and video out of sync** — the SDK now selects a video-capable audio
+  scenario before joining the channel. Agora's `ai*` scenarios do not support
+  video, so A/V sync does not work under them and the picture runs ahead of the
+  audio by hundreds of milliseconds, erratically. Hosts that genuinely need to can
+  still call `setAudioScenario` themselves after connecting to override it.
+
+### Changed
+
+- End transition lengthened from 20 to 40 frames for a gentler settle back to idle.
+  Aligned with web / Android.
+- Bumped the host SDK dependency to `1.3.3-beta.1`.
+
 ## [1.0.0-beta.8] — 2026-08-09
 
 ### Fixed

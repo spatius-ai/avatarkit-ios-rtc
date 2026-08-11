@@ -22,7 +22,7 @@ enum TelemetryIdentity {
     /// Drifted once already — left at beta.6 through the whole beta.7 release,
     /// which fails silently: the wrong number simply appears on every record,
     /// and nothing in the build catches it.
-    static let sdkVersion = "1.0.0-beta.8"
+    static let sdkVersion = "1.0.0-beta.9"
 
     @MainActor static func claim() {
         AvatarSDK.inject([
