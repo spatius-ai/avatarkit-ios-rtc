@@ -71,6 +71,7 @@ import AvatarKitAgoraBridge
 
         // Required for SEI delivery on subscribers.
         kit.setParameters("{\"rtc.video.enable_sei\":true}")
+        applyAudioScenario(kit)
         // Default to broadcaster so we can publish mic when requested.
         kit.setClientRole(.broadcaster)
         // Subscribers should ask for encoded video so the observer fires.
@@ -156,6 +157,32 @@ import AvatarKitAgoraBridge
     ///
     /// The host must NOT call `connect(_:)` on this provider in external-engine
     /// mode — the two paths are mutually exclusive.
+    /// Pick an audio scenario that keeps the picture with the sound, before the
+    /// channel is joined.
+    ///
+    /// The avatar is driven by animation riding the video stream while its voice
+    /// arrives on the audio stream, so the two staying aligned is not a nicety
+    /// here — it is the whole effect. Agora only aligns them under a scenario
+    /// that supports video, and the `ai*` scenarios do not (confirmed by Agora).
+    /// Under those the picture ran ahead of the sound by anywhere from 160 to
+    /// 640ms with no pattern to it, because nothing was aligning them at all.
+    ///
+    /// That trap is worth closing inside the SDK: `aiClient` is exactly what an
+    /// app built around listening to an AI would reach for, and the setting has
+    /// to be made before joining — Agora takes it once and does not re-read it
+    /// across joins — which is a moment the SDK owns and the host cannot easily
+    /// aim at.
+    ///
+    /// Hosts with different needs can still call `setAudioScenario` on the
+    /// engine afterwards; this only sets the default, and does so where it takes
+    /// effect.
+    private func applyAudioScenario(_ kit: AgoraRtcEngineKit) {
+        let rc = kit.setAudioScenario(.chorus)
+        if rc != 0 {
+            logger.warn("setAudioScenario(chorus) returned \(rc); AV sync may drift")
+        }
+    }
+
     public func attachExternalEngine(_ externalEngine: AgoraRtcEngineKit) throws {
         if engine != nil {
             throw AgoraProviderError.invalidConfig(
@@ -173,6 +200,11 @@ import AvatarKitAgoraBridge
         if seiRc != 0 {
             throw AgoraProviderError.seiEnableFailed(Int(seiRc))
         }
+
+        // Same reason as the managed path, and the same window: attach is
+        // documented as happening before the host's joinChannel. A host that
+        // deliberately wants another scenario can set it after attaching.
+        applyAudioScenario(externalEngine)
 
         // Install the encoded-frame observer. This borrows the engine's media
         // engine via the native handle; it does not depend on how the engine was
