@@ -8,7 +8,7 @@ Swift Package Manager:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/spatius-ai/avatarkit-ios-rtc.git", from: "1.0.0-beta.8")
+    .package(url: "https://github.com/spatius-ai/avatarkit-ios-rtc.git", from: "1.0.0")
 ]
 ```
 
@@ -16,7 +16,7 @@ dependencies: [
 
 - iOS 16.0+
 - arm64
-- `AvatarKit` 1.3.2
+- `AvatarKit` 1.3.3
 - `AgoraRtcEngine_iOS` 4.5.2 — 4.5.x and 4.6.x are not interchangeable
 
 ## Documentation

@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.0.0] — 2026-08-17
+
+First stable release, rolling up all changes from the 1.0.0 beta line.
+
+### Fixed
+
+- Internal telemetry only; no change to the public API or runtime behavior: link
+  quality (round-trip time, jitter, packet loss) is now measured once at the start
+  and once at the end of a playback round instead of being polled every two
+  seconds. An idle connection used to keep reporting, describing a link nobody was
+  playing on.
+- Internal telemetry only; no change to the public API or runtime behavior: removed
+  four packet-loss series that were always zero. The data path they came from does
+  not implement the corresponding fields, so they reported a 0 each per second and
+  carried no information.
+
+### Changed
+
+- Bumped the host SDK dependency to `1.3.3`.
+
 ## [1.0.0-beta.9] — 2026-08-12
 
 ### Fixed
