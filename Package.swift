@@ -14,7 +14,7 @@ let package = Package(
     dependencies: [
         // AvatarKit binary distribution. Pinned exactly to keep SPM and the
         // CocoaPods podspec on the same main-SDK version.
-        .package(url: "https://github.com/spatius-ai/avatarkit-ios-release.git", exact: "1.3.3-beta.1"),
+        .package(url: "https://github.com/spatius-ai/avatarkit-ios-release.git", exact: "1.3.3"),
         .package(url: "https://github.com/apple/swift-protobuf.git", exact: "1.30.0"),
         .package(url: "https://github.com/AgoraIO/AgoraRtcEngine_iOS.git", exact: "4.5.2"),
     ],

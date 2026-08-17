@@ -95,8 +95,6 @@ public enum AvatarPlayerEvent: Sendable {
     private var subscribers: [(AvatarPlayerEvent) -> Void] = []
 
     // Transport statistics sampling
-    private static let TRANSPORT_STATS_INTERVAL_NS: UInt64 = 2_000_000_000
-    private var transportStatsTask: Task<Void, Never>?
     /// Last (packetsLost, packetsReceived) reading, for delta computation.
     private var previousTransportCounters: (lost: Int?, received: Int?)?
 
@@ -477,10 +475,12 @@ public enum AvatarPlayerEvent: Sendable {
 
     fileprivate func handleTransition(_ data: Data, count: Int) {
         conversationCount += 1
+        sampleTransportStats()
         animationHandler.handleTransitionData(data, frameCount: count)
     }
 
     fileprivate func handleTransitionEnd(_ data: Data, count: Int) {
+        sampleTransportStats()
         animationHandler.handleTransitionToIdle(data, frameCount: count)
     }
 
@@ -521,27 +521,32 @@ public enum AvatarPlayerEvent: Sendable {
 
     // MARK: - Transport statistics
 
-    /// Poll the transport for what the network stack sees, every two seconds.
+    /// Take the transport's opening reading, so the first round has something
+    /// to measure against.
+    ///
+    /// Sampling happens at the two ends of a round (see the transition
+    /// handlers), not on a timer: the link only matters while frames are
+    /// playing, and polling it every couple of seconds meant an idle connection
+    /// reported for as long as it stayed open — a session left untouched still
+    /// posted a batch every ten seconds, all of it describing nothing being
+    /// played.
+    ///
+    /// The cumulative counters need a predecessor to be differenced against, so
+    /// the baseline is taken once here when the transport comes up. It carries
+    /// across rounds: the counters run for the life of the connection, so an
+    /// idle stretch between rounds leaves no gap in them.
     ///
     /// Distinct from the stream stats, which are counted from frame sequence
     /// numbers: ALR sends every frame twice, so most losses are repaired before
     /// the application layer notices them. The gap between the two is the point
     /// — it says how much work the redundancy is doing.
     private func startTransportStatsSampling() {
-        stopTransportStatsSampling()
         previousTransportCounters = nil
-        transportStatsTask = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: Self.TRANSPORT_STATS_INTERVAL_NS)
-                guard let self, !Task.isCancelled else { return }
-                self.sampleTransportStats()
-            }
-        }
+        sampleTransportStats()
     }
 
     private func stopTransportStatsSampling() {
-        transportStatsTask?.cancel()
-        transportStatsTask = nil
+        previousTransportCounters = nil
     }
 
     private func sampleTransportStats() {
@@ -617,17 +622,13 @@ public enum AvatarPlayerEvent: Sendable {
         streamStats.framesOutOfOrder += deltas.oo
         streamStats.framesDuplicate += deltas.dup
 
-        // Application-layer counters, deliberately paired with the
-        // rtc_transport_rtp_* series: these count frames that failed to reach
-        // the screen, those count packets lost on the wire. A packet lost in
-        // transit but rebuilt from ALR redundancy shows up there and not here,
-        // so the gap between the two series is the redundancy doing its job.
-        let metricLabels: [String: Telemetry.Label] = ["provider": .string(providerName)]
-        Telemetry.recordMetric("rtc_transport_packets_lost", Double(deltas.lost), labels: metricLabels)
-        Telemetry.recordMetric("rtc_transport_packets_recovered", Double(deltas.recovered), labels: metricLabels)
-        Telemetry.recordMetric("rtc_transport_packets_dropped", Double(deltas.dropped), labels: metricLabels)
-        Telemetry.recordMetric("rtc_transport_packets_out_of_order", Double(deltas.oo), labels: metricLabels)
-
+        // The four rtc_transport_packets_* series that used to be recorded here
+        // are gone. This provider builds RTCStreamStats from SEI frame numbering
+        // and leaves every loss counter at zero — the fields are not implemented
+        // on this path — so each one posted a data point of constant zero every
+        // second for the life of the connection, carrying no information at all.
+        // The anomaly event below is guarded on a non-zero delta and so stays
+        // silent until one of them is actually populated.
         if deltas.lost > 0 || deltas.recovered > 0 || deltas.dropped > 0 ||
             deltas.oo > 0 || deltas.dup > 0 {
             Telemetry.metric("rtc_stream_stats_anomaly", [
