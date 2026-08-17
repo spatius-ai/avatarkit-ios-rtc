@@ -23,6 +23,24 @@ Pod::Spec.new do |spec|
   # include the `AvatarKitRTC/` package subdirectory prefix.
   spec.source_files = "AvatarKitRTC/Sources/AvatarKitRTC/**/*.swift"
 
+  # The host SDK ships an arm64-only simulator slice. A pod dependency's xcconfig
+  # does not propagate to the dependent pod's target, so the exclusion declared in
+  # the host podspec applies only to itself and to the host app — this target would
+  # still build for x86_64, at which point the whole AvatarKit module fails to
+  # resolve and every public type reports "cannot find in scope". Declare the same
+  # exclusion here.
+  #
+  # What this excludes is only the Intel Mac simulator, which the host SDK does
+  # not support anyway: the Metal renderer and the SPCoreLibrary binary dependency
+  # are both arm64-only, so an x86_64 slice cannot be produced at all (see the host
+  # SDK's Scripts/build_avatarkit.sh). The simulator works as usual on Apple Silicon.
+  spec.pod_target_xcconfig = {
+    "EXCLUDED_ARCHS[sdk=iphonesimulator*]" => "x86_64"
+  }
+  spec.user_target_xcconfig = {
+    "EXCLUDED_ARCHS[sdk=iphonesimulator*]" => "x86_64"
+  }
+
   # AvatarKitAgoraBridge is a separate pod (not a subspec) so it compiles as its
   # own Clang module — the Swift sources do `import AvatarKitAgoraBridge`, which
   # only resolves against a standalone module, matching the SPM target layout.
