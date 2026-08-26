@@ -2,7 +2,7 @@
 
 Layer: **current state** — describes the SDK as it is at HEAD. Present tense.
 Rewritten in place whenever the code changes; re-verified against source on every
-release (→ `knowledge/workflows/release-workflow.md` §1.1).
+release (see the Documentation Alignment Gate section in this file).
 
 Pods `AvatarKitRTC` + `AvatarKitAgoraBridge`, v1.0.0. Swift 6.
 
@@ -36,19 +36,19 @@ ObjC++ bridge under `Sources/AvatarKitAgoraBridge/`.
 `AvatarPlayer` (`@MainActor public final class`, `:46`):
 
 ```swift
-public func connect(_ config: RTCConnectionConfig) async throws          // :173
-public func attach(to engine: AgoraRtcEngineKit) throws                  // :224  ← synchronous
-public func detach() async                                               // :258
-public func disconnect() async                                           // :283
-public func publishAudio() async throws                                  // :334
-public func unpublishAudio() async                                       // :348
-public func publishExternalPCM(sampleRate:channels:) async throws        // :360
-public func pushPCM(_ data: Data) async                                  // :376
-public func reconnect() async throws                                     // :381
-@discardableResult public func subscribe(_:) -> Int                      // :417
-public func getNativeClient() -> Any?                                    // :426
-public var isConnected: Bool                                             // :57
-public var sessionSummary: AnimationSessionSummary                       // :63
+public func connect(_ config: RTCConnectionConfig) async throws // :173
+public func attach(to engine: AgoraRtcEngineKit) throws // :224 ← synchronous
+public func detach() async // :258
+public func disconnect() async // :283
+public func publishAudio() async throws // :334
+public func unpublishAudio() async // :348
+public func publishExternalPCM(sampleRate:channels:) async throws // :360
+public func pushPCM(_ data: Data) async // :376
+public func reconnect() async throws // :381
+@discardableResult public func subscribe(_:) -> Int // :417
+public func getNativeClient() -> Any? // :426
+public var isConnected: Bool // :57
+public var sessionSummary: AnimationSessionSummary // :63
 ```
 
 Also public: `AvatarPlayerOptions`, `AvatarPlayerEvent`, `AvatarPlayerError`,
@@ -82,17 +82,17 @@ the rest is `fatalError("subclass must override …")`.
 ## 4. Data flow
 
 ```
-Agora C++ IVideoEncodedFrameObserver           (Agora's aosl_main thread)
-  └─ AKAgoraEncodedFrameObserver.mm:16 → NSData copy
-     └─ handler block                           AgoraProvider.swift:355
-        └─ workQueue.async "ai.spatius.rtc.agora-nal"   (:352, serial, .userInitiated)
-           ├─ H264SEIExtractor.extractUserDataPayloads  (:364)
-           └─ Task { @MainActor }                       (:380)
-              └─ SEIPacketParser.handleSEIPayload       (:386)
-                 └─ AnimationTrackCallbacks → AnimationCallbacksBridge  (:741)
-                    └─ AvatarPlayer.handleAnimationData / …             (:460-503)
-                       └─ AnimationHandler → jitter buffer → clock tick
-                          └─ AvatarView.renderFromProtobufSync          (:710)
+Agora C++ IVideoEncodedFrameObserver (Agora's aosl_main thread)
+ └─ AKAgoraEncodedFrameObserver.mm:16 → NSData copy
+ └─ handler block AgoraProvider.swift:355
+ └─ workQueue.async "ai.spatius.rtc.agora-nal" (:352, serial, .userInitiated)
+ ├─ H264SEIExtractor.extractUserDataPayloads (:364)
+ └─ Task { @MainActor } (:380)
+ └─ SEIPacketParser.handleSEIPayload (:386)
+ └─ AnimationTrackCallbacks → AnimationCallbacksBridge (:741)
+ └─ AvatarPlayer.handleAnimationData / … (:460-503)
+ └─ AnimationHandler → jitter buffer → clock tick
+ └─ AvatarView.renderFromProtobufSync (:710)
 ```
 
 ### Why two SEI classes

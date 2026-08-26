@@ -3,14 +3,14 @@
 Where everything under `docs/` lives, and which layer it belongs to.
 
 The three directories and the five `architecture/` filenames are **identical in
-all seven SDK repos** — spec → `knowledge/docs-structure-spec.md` (umbrella repo
+all seven SDK repos** — spec → `docs/decisions/README.md` (umbrella repo
 `avatarkit-sdks`).
 
 ## `architecture/` — current state
 
 How this SDK works **right now**. Rewritten in place when the code changes.
 Aligning these files with code fact is a hard release gate
-(→ `knowledge/workflows/release-workflow.md` §1.1).
+(see the Documentation Alignment Gate section in this file).
 
 **All five files were verified against code on 2026-08-26 at v1.0.0.**
 
@@ -44,4 +44,4 @@ _Empty — this repo had no pre-existing documentation to archive._
 ## Maintaining this file
 
 Any commit that adds, moves, or deletes a file under `docs/` updates this map in
-the same commit → `knowledge/workflows/commit-workflow.md`.
+the same commit

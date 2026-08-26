@@ -2,7 +2,7 @@
 
 Layer: **current state** — rewritten in place whenever the build or publish flow
 changes. Verified against build config on every release
-(→ `knowledge/workflows/release-workflow.md` §1.1).
+(see the Documentation Alignment Gate section in this file).
 
 > For the general release process (checklist, gate rules, report schema, cross-SDK
 > alignment, API deprecation policy) see
@@ -88,7 +88,7 @@ dependencies are pinned exactly as well: SwiftProtobuf 1.30.0, AgoraRtcEngine_iO
 
 1. Confirm the release branch is correct and carries no unrelated changes
 2. After updating all 5 version numbers from §2, run `./scripts/check_version_consistency.sh`
-   — it covers #1 / #2 / #4; **#3 (the cross-reference inside the podspec) and #5 (the git tag) still need a manual check**
+ — it covers #1 / #2 / #4; **#3 (the cross-reference inside the podspec) and #5 (the git tag) still need a manual check**
 3. Confirm `CHANGELOG.md` is filled in (including the host SDK version this release depends on)
 4. Confirm the target version is not already taken on trunk
 5. If the host SDK was bumped, confirm `Package.swift:17` and `AvatarKitRTC.podspec:47` are in sync
@@ -96,8 +96,8 @@ dependencies are pinned exactly as well: SwiftProtobuf 1.30.0, AgoraRtcEngine_iO
 ## 4. Local verification
 
 ```bash
-swift build                                   # SPM build
-xcodebuild test -scheme AvatarKitRTC ...       # runs only 1 smoke unit test
+swift build # SPM build
+xcodebuild test -scheme AvatarKitRTC ... # runs only 1 smoke unit test
 ```
 
 > `xcodebuild test` covers only the single smoke case in `AvatarKitRTCTests`;
@@ -124,7 +124,7 @@ both the simulator and a real device**. The simulator architecture bug in
 each file must be re-verified against the code actually being shipped** — this is
 a hard gate; shipping with a stale current-state layer is not allowed.
 
-Rules and the per-item checklist → `knowledge/workflows/release-workflow.md` §1.1
+Rules and the per-item checklist → see the documentation alignment gate section in this file
 
 | File | Verified against | Gate question |
 |------|---------|---------|
@@ -140,16 +140,16 @@ Requirements:
 - Any drift found is **fixed in the release commit itself**, never deferred.
 - If a file cannot be brought up to date in time, postpone the release or revert the change.
 - `docs/decisions/` is **not** part of this gate. Once an ADR is accepted it is immutable;
-  when a decision is overturned, write a new one and mark the old one `superseded` — never
-  edit the original record to match current reality.
-  But **pointer files for cross-SDK ADRs must match the status of their source** — if the
-  source changes status, the pointer in this repo must follow.
+ when a decision is overturned, write a new one and mark the old one `superseded` — never
+ edit the original record to match current reality.
+ But **pointer files for cross-SDK ADRs must match the status of their source** — if the
+ source changes status, the pointer in this repo must follow.
 
 ## 6. Release steps
 
 ```bash
 # 1. Update the 5 version numbers from §2 (including TelemetryIdentity.swift)
-./scripts/check_version_consistency.sh         # must pass, otherwise telemetry ships the wrong version
+./scripts/check_version_consistency.sh # must pass, otherwise telemetry ships the wrong version
 # 2. Update CHANGELOG.md
 # 3. Local verification (§4) + documentation alignment gate (§5)
 # 4. commit + tag
@@ -161,8 +161,8 @@ git push origin main && git push origin v<version>
 
 # 6. Publish to CocoaPods — the order matters
 cd AvatarKitRTC
-pod trunk push AvatarKitAgoraBridge.podspec    # bridge first
-pod trunk push AvatarKitRTC.podspec            # then the main pod
+pod trunk push AvatarKitAgoraBridge.podspec # bridge first
+pod trunk push AvatarKitRTC.podspec # then the main pod
 ```
 
 > 🚦 **Manual gate**: `pod trunk push` is an **irreversible public release**, on
@@ -235,12 +235,12 @@ Apple Silicon is unaffected.
 2. Smoke install in a clean project, **built separately for simulator and device**
 3. Confirm that on the SPM side `.package(url:…, from: "<version>")` resolves to the new tag
 4. **Public docs**: this repo has no standalone public documentation — `README.md`
-   points at the web rtc-adapter docs. When the API changes, assess whether that
+ points at the web rtc-adapter docs. When the API changes, assess whether that
  shared document needs updating
 5. Record the outcome of the documentation alignment gate in the release commit
-   message: which `architecture/` files were verified and what drift was fixed. If
-   a decision was made this round, write a separate ADR → [`../decisions/`](../decisions/)
-   (→ `knowledge/workflows/commit-workflow.md`)
+ message: which `architecture/` files were verified and what drift was fixed. If
+ a decision was made this round, write a separate ADR → [`../decisions/`](../decisions/)
+ (→ `knowledge/workflows/commit-workflow.md`)
 
 ## Related
 

@@ -2,7 +2,7 @@
 
 Layer: **current state** — rewritten in place whenever tests are added, removed
 or renamed. Verified against the test sources on every release
-(→ `knowledge/workflows/release-workflow.md` §1.1).
+(see the Documentation Alignment Gate section in this file).
 
 Pods `AvatarKitRTC` + `AvatarKitAgoraBridge`, v1.0.0.
 
@@ -28,10 +28,10 @@ app."* **`xcodebuild test` reaches only this one case**, never the 63 below.
 Both integration suites are **manual, inside the demo app**:
 
 ```
-RTCDemoApp → "Integration Test"            RTCDemoApp.swift:27-31
-  → segmented picker: Mock (no network) / Live (Agora)   IntegrationTestView.swift:82-88
-  → fill Backend base URL / App ID / Avatar ID           :90-108
-  → Run → "Copy Report" (plain text to clipboard)        :49-53
+RTCDemoApp → "Integration Test" RTCDemoApp.swift:27-31
+ → segmented picker: Mock (no network) / Live (Agora) IntegrationTestView.swift:82-88
+ → fill Backend base URL / App ID / Avatar ID :90-108
+ → Run → "Copy Report" (plain text to clipboard) :49-53
 ```
 
 Default mode is **mock** (`:173`). Case selection is `switch mode` at `:196-200`.
@@ -76,8 +76,8 @@ Verified by sorting both sides' ids and diffing:
 
 - **Mock: iOS ↔ Android is byte-identical across all 43.** ✅
 - **Live: Android's 17 are a strict subset of iOS's 20.** The three extra are
-  iOS-only, grouped under "iOS-Only" (`TestCases.swift:297-299`: *"Behavior that
-  doesn't exist on web RTC SDK but is critical for iOS"*):
+ iOS-only, grouped under "iOS-Only" (`TestCases.swift:297-299`: *"Behavior that
+ doesn't exist on web RTC SDK but is critical for iOS"*):
 
 | id | Defined at |
 |----|-----------|
@@ -89,12 +89,12 @@ Verified by sorting both sides' ids and diffing:
 > than trusting the titles:
 >
 > - `rtc.ios.avatar-id-mismatch` cannot construct a payload with an arbitrary
->   avatar id from outside the SDK (`:324-328`), so it feeds empty `Data()` down
->   the happy path; and its `catch` only logs (`:333-336`), so **it passes whether
->   or not anything throws**.
+> avatar id from outside the SDK (`:324-328`), so it feeds empty `Data()` down
+> the happy path; and its `catch` only logs (`:333-336`), so **it passes whether
+> or not anything throws**.
 > - `rtc.ios.transition-end-smooth` is a smoke check by its own admission
->   (`:344-346`) — it asserts an empty payload is rejected (`:355`) and **never
->   looks at whether the transition jumps**.
+> (`:344-346`) — it asserts an empty payload is rejected (`:355`) and **never
+> looks at whether the transition jumps**.
 
 Android's `androidOnly` slot exists but is empty, so nothing flows the other way.
 
@@ -282,7 +282,7 @@ only thing holding the two suites together, since RTC cases have no platform
 registry. Check `avatarkit-android-rtc/demo/.../integration/` first.
 
 Then update this file in the same commit
-(→ `knowledge/workflows/commit-workflow.md`).
+.
 
 ## Related
 

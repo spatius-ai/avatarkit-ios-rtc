@@ -15,18 +15,18 @@ what the next person re-litigates.
 
 ## Writing one
 
-Rules, criteria and worked examples → `knowledge/docs-structure-spec.md`.
+Rules, criteria and worked examples → `docs/decisions/README.md`。
 The short version:
 
 - **Write one only if** the decision is hard to reverse, crosses platforms, or
-  constrains future work. Not for ports, bug fixes, config, renames, or version
-  bumps — the commit already covers those.
+ constrains future work. Not for ports, bug fixes, config, renames, or version
+ bumps — the commit already covers those.
 - **Claude drafts, a human approves, and only then is the file written.** A
-  declined draft is discarded, not filed.
+ declined draft is discarded, not filed.
 - **Numbers are unique across all seven repos.** Check the highest number in use
-  anywhere before allocating one.
+ anywhere before allocating one.
 - **Immutable once accepted.** A reversed decision is marked
-  `superseded by ADR-NNNN`; a new record is written. The original stays readable.
+ `superseded by ADR-NNNN`; a new record is written. The original stays readable.
 
 ## Cross-platform decisions
 

@@ -16,8 +16,8 @@ has already drifted twice:
 
 - it sat at `beta.6` for the whole beta.7 release cycle (only fixed in `dc3aee9`)
 - `52f258d release: v1.0.0` updated the two podspecs but missed this file, so
-  **every record reported by v1.0.0 carried `1.0.0-beta.9`, a version that was never
-  released**
+ **every record reported by v1.0.0 carried `1.0.0-beta.9`, a version that was never
+ released**
 
 Drift produces no build error and behaves perfectly at runtime — the wrong version
 just quietly shows up in the data. Both times it was the same convention failing:
@@ -61,14 +61,14 @@ same way.
 - The release process can catch drift before tagging instead of relying on someone
   remembering
 - Cost: one more release step; the constant itself is still maintained by hand, and
-  the script only guarantees the three spots are **consistent with each other**, not
-  that they are **collectively correct** (if all three are given the same wrong
-  version, the script cannot tell)
+ the script only guarantees the three spots are **consistent with each other**, not
+ that they are **collectively correct** (if all three are given the same wrong
+ version, the script cannot tell)
 - The script covers 3 of the 5 places a version lives; cross-references inside the
   podspecs and the git tag still need a manual check
 - **The published v1.0.0 artifacts cannot be corrected retroactively**; the
-  `sdk_version` for that batch of data will always be `1.0.0-beta.9`, and anyone
-  analyzing v1.0.0 telemetry has to know this
+ `sdk_version` for that batch of data will always be `1.0.0-beta.9`, and anyone
+ analyzing v1.0.0 telemetry has to know this
 - The script itself is a new point of dependency: if the shape of the version line
-  ever changes (say a podspec is reformatted), the script fails with "UNREADABLE"
-  rather than silently passing — deliberately so; better noisy than missed
+ ever changes (say a podspec is reformatted), the script fails with "UNREADABLE"
+ rather than silently passing — deliberately so; better noisy than missed

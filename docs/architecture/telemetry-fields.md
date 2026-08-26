@@ -3,9 +3,9 @@
 Layer: **current state** — describes what `AvatarKitRTC` **actually emits at
 HEAD** (v1.0.0). Rewritten in place whenever an event or field changes;
 re-verified against the telemetry call sites on every release
-(→ `knowledge/workflows/release-workflow.md` §1.1).
+(see the Documentation Alignment Gate section in this file).
 
-See `knowledge/telemetry-events.md` (umbrella repo) for the cross-platform event catalog — that catalog has no `rtc_*` entries yet.
+(Maintainers keep a separate cross-platform event catalog at `knowledge/telemetry-events.md`, which is not distributed with this repo.) — That catalog has no `rtc_*` entries yet.
 
 Paths are relative to `AvatarKitRTC/Sources/AvatarKitRTC/`; host SDK paths are marked `ios-sdk/AvatarKit/Sources/AvatarKit/`.
 
@@ -283,8 +283,8 @@ Structurally one-to-one with web/android; the root always closes OK.
 Same design as web `bc4732b` and android `f3cb8ef`, with the same three key points:
 
 1. **Retry each round until one is obtained, rather than only inspecting the first packet** — `AnimationHandler.swift:326-328`; the comment
-   (`:322-325`) states explicitly that a round may open with a frame the server did not tag, so trying only once would lose the trace for the whole round.
-   It stops once one is obtained, so in steady state it decodes once per round
+ (`:322-325`) states explicitly that a round may open with a frame the server did not tag, so trying only once would lose the trace for the whole round.
+ It stops once one is obtained, so in steady state it decodes once per round
 2. **Cleared every round** — `:842`
 3. **Falls back** to the host SDK's trace_id derived from conversationId (`OtelTrace.swift:346-348`)
 
@@ -330,8 +330,8 @@ same as android, so a cross-platform dashboard must not stack it directly agains
 ### iOS-only (2 items)
 
 8. **`TelemetryIdentity.sdkVersion` is the only hand-written version constant across the three platforms** (§0) — SPM has no build-time
-    injection. It has drifted twice, and **the existing v1.0.0 data carries the wrong version number with no way to correct it retroactively**; HEAD is fixed,
-    and `scripts/check_version_consistency.sh` prevents a recurrence
+ injection. It has drifted twice, and **the existing v1.0.0 data carries the wrong version number with no way to correct it retroactively**; HEAD is fixed,
+ and `scripts/check_version_consistency.sh` prevents a recurrence
 9. **`emitPlaybackTrace` has no exception protection** — android wraps it in a try/catch, iOS runs unguarded
 
 ### Where iOS is better than the other two platforms (3 items)
