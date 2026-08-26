@@ -1047,7 +1047,12 @@ public struct AnimationSessionSummary: Sendable {
             frameBuffer.removeValue(forKey: oldestSeq)
             conversationJitterStats.jitterDropOverflow += 1
             conversationDropped += 1
-            trackMetric("rtc_jitter_buffer_overflow", ["dropped_seq": oldestSeq])
+            // This used to emit one rtc_jitter_buffer_overflow per frame. What a
+            // full buffer actually causes — stalls and skipped frames — is already
+            // recorded in full by rtc_playback_stats' stall_events and skipped_seqs,
+            // and how many this round dropped is carried by jitter_drop_overflow,
+            // while a per-frame event floods at frame rate once a backlog builds.
+            // Web removed it in d8b310b; this matches.
         }
 
         switch bufferState {

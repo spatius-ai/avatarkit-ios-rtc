@@ -244,11 +244,15 @@ so **`.disconnect` is never assigned** — the same dead value as web/android.
 |------|------|------|
 | `rtc_stream_stats_anomaly` | any delta > 0 in the sampling window | `AvatarPlayer.swift:634-645` |
 | `rtc_jitter_buffer_starved` | entering STARVED, **edge-triggered** (`:1507`) | `AnimationHandler.swift:1509` |
-| **`rtc_jitter_buffer_overflow`** | buffer exceeded `bufferMaxSize = 4`, oldest frame evicted | `AnimationHandler.swift:1046` |
 
-> **Two divergences from web, same as android**: `rtc_jitter_buffer_overflow` **still exists on iOS**
-> (web removed it in `d8b310b`), and `rtc_jitter_buffer_starved` is **edge-triggered** (web fires at most
-> once per round). Neither carries `conversation_id`.
+> **Difference from web**: `rtc_jitter_buffer_starved` is **edge-triggered** (web fires at most
+> once per round), and it does not carry `conversation_id`.
+>
+> `rtc_jitter_buffer_overflow` was removed along with web (`d8b310b`): it fired per frame, so under backlog it
+> would spam at the frame rate, while the consequence of dropping frames on a full buffer is already captured by
+> `stall_events` / `skipped_seqs` in `rtc_playback_stats`, and how many were dropped is available from `jitter_drop_overflow`
+> (aggregated at both the per-round and session levels).
+> The counting logic is retained; only the per-frame event was deleted.
 >
 > ✅ **`telemetry_kind` is a real field on iOS** (actually written at `Telemetry.swift:70`).
 > On android it exists only in a comment, not in the implementation — **iOS is the only one of the three platforms that actually implements it**.
@@ -316,20 +320,19 @@ same as android, so a cross-platform dashboard must not stack it directly agains
 ### Shared with android (9 items)
 
 1. Buckets for the 4 `rtc_transport_*` metrics have landed in the host SDK (`c886419`) but are unreleased → production still uses default buckets
-2. `rtc_jitter_buffer_overflow` has not followed web's removal
-3. `rtc_jitter_buffer_starved` deduplication semantics differ from web (edge-triggered)
-4. Inconsistent field naming on failed events (`reason` vs `description`)
-5. `EndReason.disconnect` is a dead value
-6. Trace wall clock is not ClockSync-calibrated, while the log channel is
-7. Four semantic divergences between `rtc_session_summary` and web (§2.3)
-8. `rtc_stream_stalled` is missing `conversation_id`
+2. `rtc_jitter_buffer_starved` deduplication semantics differ from web (edge-triggered)
+3. Inconsistent field naming on failed events (`reason` vs `description`)
+4. `EndReason.disconnect` is a dead value
+5. Trace wall clock is not ClockSync-calibrated, while the log channel is
+6. Four semantic divergences between `rtc_session_summary` and web (§2.3)
+7. `rtc_stream_stalled` is missing `conversation_id`
 
 ### iOS-only (2 items)
 
-9. **`TelemetryIdentity.sdkVersion` is the only hand-written version constant across the three platforms** (§0) — SPM has no build-time
+8. **`TelemetryIdentity.sdkVersion` is the only hand-written version constant across the three platforms** (§0) — SPM has no build-time
     injection. It has drifted twice, and **the existing v1.0.0 data carries the wrong version number with no way to correct it retroactively**; HEAD is fixed,
     and `scripts/check_version_consistency.sh` prevents a recurrence
-10. **`emitPlaybackTrace` has no exception protection** — android wraps it in a try/catch, iOS runs unguarded
+9. **`emitPlaybackTrace` has no exception protection** — android wraps it in a try/catch, iOS runs unguarded
 
 ### Where iOS is better than the other two platforms (3 items)
 
