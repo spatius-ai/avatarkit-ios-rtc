@@ -125,13 +125,14 @@ All go through `Telemetry.recordMetric` (`Telemetry.swift:87`), which automatica
 Sampling timing: **once at the start and once at the end of each playback round** (`:478` / `:483`); the baseline is taken only once and carried across rounds
 (`:534-546`). Same change as android `e977af6` and web `d8b310b`.
 
-> 🔴 **These 4 metrics have no buckets registered in the host SDK.** `bucketProfiles` in
-> `ios-sdk/…/OtelMetrics.swift:97-111` **covers only the 12 `rtc_playback_*` metrics**; `rtc_transport_*` matches nothing —
-> so they fall into OTel's default buckets, which have no resolution for RTT milliseconds or percentages. The comment at
-> `:94-96` explains that views can only be configured by whoever builds the MeterProvider, so **fixing this requires the host SDK to ship first**.
+> ⚠️ **Buckets for these 4 metrics have landed in the host SDK, but take effect only after the host SDK ships.**
+> `bucketProfiles` in `ios-sdk/…/OtelMetrics.swift` previously covered only the 12
+> `rtc_playback_*` metrics, so these 4 matched nothing and fell into OTel's default buckets, which have no resolution for
+> RTT milliseconds or percentages.
+> They have been filled in following the web host SDK's tiers (`c886419`), and the android host SDK was updated to match (`28ff8c8`).
 >
-> **Exactly the same gap as android** (the android host SDK likewise has only the 12); **the web host SDK registers
-> all 20**. This is a problem shared by both mobile platforms, not a one-off on a single platform.
+> Views can only be configured by whoever builds the MeterProvider (comment at `OtelMetrics.swift:94-96`),
+> so **until the host SDK ships a release containing that change and this repo bumps its dependency, production data still lands in the default buckets**.
 
 ### 1.3 Four metrics that were removed (`2d28046`)
 
@@ -310,7 +311,7 @@ same as android, so a cross-platform dashboard must not stack it directly agains
 
 ### Shared with android (9 items)
 
-1. The 4 `rtc_transport_*` metrics have no buckets in the host SDK → they fall into the default buckets. **Requires the host SDK to ship first**
+1. Buckets for the 4 `rtc_transport_*` metrics have landed in the host SDK (`c886419`) but are unreleased → production still uses default buckets
 2. `rtc_playback_stats` does not carry `conversation_id` → the path from an event to its trace is broken
 3. `rtc_jitter_buffer_overflow` has not followed web's removal
 4. `rtc_jitter_buffer_starved` deduplication semantics differ from web (edge-triggered)
