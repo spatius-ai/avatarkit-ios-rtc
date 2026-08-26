@@ -153,12 +153,19 @@ Android, which throws a catchable exception.
 > built synchronously inside `initialize()`), which is why that SDK needs a
 > ContentProvider to claim identity before app code runs.
 
-> 🔴 **`TelemetryIdentity.sdkVersion` is hand-written and has drifted.** It reads
-> `"1.0.0-beta.9"` (`:25`) while both podspecs say `1.0.0` — the
-> `52f258d release: v1.0.0` commit changed the podspecs and missed this file. So
-> **every telemetry record from 1.0.0 is stamped `1.0.0-beta.9`**. Nothing in the
-> build catches it. Its own comment (`:22-24`) notes this already happened once,
-> stuck at beta.6 through the whole beta.7 release.
+> ⚠️ **`TelemetryIdentity.sdkVersion` is hand-written**, because Swift Package
+> Manager offers no build-time substitution — a package cannot read its own
+> podspec or git tag. Web derives this from package.json via Vite's `define`;
+> Android from `gradle.properties` via `BuildConfig`. **iOS is the only layer
+> with no automatic source**, so this constant *is* the source of truth.
+>
+> It has drifted twice: stuck at beta.6 through the whole beta.7 release
+> (`dc3aee9`), then at `1.0.0-beta.9` after `52f258d release: v1.0.0` bumped the
+> podspecs and missed this file — **every telemetry record shipped from v1.0.0
+> carries a version that was never released**, and those artifacts cannot be
+> corrected retroactively. HEAD is now correct, and
+> `scripts/check_version_consistency.sh` fails the release when the constant and
+> the two podspecs disagree.
 > → [`release-process.md`](release-process.md) §2
 
 ### `AnimationHandler` is only partly decoupled

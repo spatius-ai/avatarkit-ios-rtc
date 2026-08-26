@@ -16,13 +16,20 @@ import Foundation
 /// Resource is built synchronously inside initialize(), which is why that SDK
 /// declares a ContentProvider to claim the identity before app code runs.)
 enum TelemetryIdentity {
-    /// This package's version. Hand-written because a Swift package cannot read
-    /// its own podspec; **keep in step with `AvatarKitRTC.podspec`**.
+    /// This package's version. Hand-written because Swift Package Manager has no
+    /// build-time substitution — a package cannot read its own podspec, its git
+    /// tag, or any generated constant. (The web and Android RTC layers do derive
+    /// this: Vite injects `__RTC_SDK_VERSION__` from package.json, Gradle emits
+    /// `BuildConfig.SDK_VERSION` from gradle.properties. SPM offers no
+    /// equivalent, so on iOS this constant *is* the source of truth.)
     ///
-    /// Drifted once already — left at beta.6 through the whole beta.7 release,
-    /// which fails silently: the wrong number simply appears on every record,
-    /// and nothing in the build catches it.
-    static let sdkVersion = "1.0.0-beta.9"
+    /// Drifted twice: left at beta.6 through the whole beta.7 release, then at
+    /// beta.9 through 1.0.0. It fails silently — the wrong number simply appears
+    /// on every telemetry record and nothing at runtime notices.
+    ///
+    /// `scripts/check_version_consistency.sh` now fails the build when this and
+    /// the two podspecs disagree; the release process runs it before tagging.
+    static let sdkVersion = "1.0.0"
 
     @MainActor static func claim() {
         AvatarSDK.inject([

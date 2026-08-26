@@ -42,16 +42,19 @@ synchronously), which is why it needs a ContentProvider.
 > `shutdown()` (flushing first) and rebuilds all three providers. **Neither web nor android has this recovery**,
 > so a late claim is simply lost there.
 
-> 🔴 **`TelemetryIdentity.sdkVersion` has already drifted.** `TelemetryIdentity.swift:25`
-> is a hand-written constant, currently `"1.0.0-beta.9"`, while the repo has already shipped `v1.0.0` (`52f258d`) —
-> **every record reported by v1.0.0 carries `sdk_version = 1.0.0-beta.9`**.
+> ⚠️ **`TelemetryIdentity.sdkVersion` is a hand-written constant, and it has already drifted twice.**
 >
-> Its own comment (`:19-24`) already warned about this: a Swift package cannot read its own podspec, so it must be kept in sync with
-> `AvatarKitRTC.podspec` by hand — and **this is already the second time** (last time it stayed at
-> beta.6 for the whole beta.7 cycle, see `dc3aee9`). **Nothing in the build can catch it.**
+> Swift Package Manager has no build-time substitution: a package cannot read its own podspec or git tag.
+> Compare web (vite `define` ← package.json) and android (`BuildConfig` ←
+> `gradle.properties`) — **both are automatic; only iOS has no automatic source**, so the constant
+> itself is the single source of truth.
 >
-> Compare: web injects it via vite `define` from package.json, and android uses
-> `AvatarKitRTC.VERSION` ← `BuildConfig` — **both are automatic; only iOS is hand-written**.
+> The two drifts: the constant stayed at beta.6 for the whole beta.7 cycle (fixed in `dc3aee9`); and **after the v1.0.0 release it stayed at
+> `1.0.0-beta.9`, meaning every record reported by v1.0.0 carried a version number that was never released**.
+> Keep this in mind when analyzing data from that version — the already-published v1.0.0 artifact cannot be retroactively corrected.
+>
+> `scripts/check_version_consistency.sh` now guards against this (comparing the constant against both podspecs and
+> failing on any mismatch), and is wired into the release process.
 > → [`release-process.md`](release-process.md) §2
 
 **Resource under an RTC integration**: `service.name = avatarkit`, `sdk.package = spatius-ios-rtc`,
@@ -319,8 +322,9 @@ same as android, so a cross-platform dashboard must not stack it directly agains
 
 ### iOS-only (2 items)
 
-10. 🔴 **`TelemetryIdentity.sdkVersion` has drifted to `1.0.0-beta.9`** (§0) — a hand-written constant,
-    with no build-time validation, that has **now drifted twice in a row**, and HEAD is still wrong
+10. **`TelemetryIdentity.sdkVersion` is the only hand-written version constant across the three platforms** (§0) — SPM has no build-time
+    injection. It has drifted twice, and **the existing v1.0.0 data carries the wrong version number with no way to correct it retroactively**; HEAD is fixed,
+    and `scripts/check_version_consistency.sh` prevents a recurrence
 11. **`emitPlaybackTrace` has no exception protection** — android wraps it in a try/catch, iOS runs unguarded
 
 ### Where iOS is better than the other two platforms (3 items)

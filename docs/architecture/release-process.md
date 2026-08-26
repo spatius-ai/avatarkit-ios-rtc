@@ -20,38 +20,43 @@ changes. Verified against build config on every release
 | CI | **None.** The repo has no `.github/`; every gate is run manually and locally |
 | Platform | iOS 16.0, Swift 6.0 |
 
-## 2. Version numbers — 5 places, 1 of them with no check at all
+## 2. Version numbers — 5 places, 3 of them checked by a script
 
 | # | Location | Current value | Nature |
 |---|------|--------|------|
 | 1 | `AvatarKitRTC/AvatarKitRTC.podspec:3` | `1.0.0` | pod version |
 | 2 | `AvatarKitRTC/AvatarKitAgoraBridge.podspec:3` | `1.0.0` | pod version, **must stay in sync with #1** |
 | 3 | `AvatarKitRTC.podspec:44` | `spec.dependency "AvatarKitAgoraBridge", "1.0.0"` | **Cross-reference — must be bumped too** |
-| 4 | **`Sources/AvatarKitRTC/Utils/TelemetryIdentity.swift:25`** | **`1.0.0-beta.9`** | 🔴 **Currently wrong** |
+| 4 | `Sources/AvatarKitRTC/Utils/TelemetryIdentity.swift` | `1.0.0` | Hand-written constant, injected into telemetry as `sdk_version` |
 | 5 | git tag `v<version>` | `v1.0.0` | Both podspecs rely on it via `:tag => "v#{spec.version}"` |
 
 `Package.swift` itself **contains no version number** — the SPM version is
 determined entirely by the git tag. This is a structural difference from Android,
 which records the version in `gradle.properties`.
 
-> 🔴 **#4 is the easiest thing to miss on a release, and the one with the most
-> insidious consequences.**
+> **Why #4 is hand-written.**
 >
-> `TelemetryIdentity.sdkVersion` is a **hand-written constant** (a Swift package
-> cannot read its own podspec); it is injected into the native OTel Resource as
-> `sdk_version`. Forgetting to bump it produces **no build error at all** — every
-> telemetry record just carries the wrong version, while production behaves
-> perfectly normally.
+> Swift Package Manager has no build-time substitution mechanism: a package
+> cannot read its own podspec or git tag, and it cannot generate constants.
+> Compare with web (vite `define` injects `__RTC_SDK_VERSION__` from
+> package.json) and Android (`BuildConfig.SDK_VERSION` ←
+> `gradle.properties`) — **iOS is the only platform with no automatic source**,
+> so this constant *is* the source of truth.
 >
-> **HEAD is drifted right now**: the repo has already shipped `v1.0.0`, and this
-> constant is still sitting at `1.0.0-beta.9`. And this is **already the second
-> time** — last time it sat at beta.6 for the entire beta.7 cycle (only fixed in
-> `dc3aee9`). Its own comment (`:19-24`) spells out that very lesson.
->
-> Compare: web injects it automatically via vite `define` from package.json, and
-> Android generates `AvatarKitRTC.VERSION` ← `BuildConfig` — **iOS is the only
-> one that is hand-written**. Long term this should become build-time injection;
-> until then, **this item must be verified by hand on every single release**.
+> Forgetting to bump it produces no build error at all — every telemetry record
+> just carries a version that was never released, while production behaves
+> perfectly normally. **It has already drifted twice**: it sat at beta.6 for the
+> entire beta.7 cycle (fixed in `dc3aee9`), and it sat at beta.9 after the 1.0.0
+> release (corrected this round). Both times "check it by hand each release"
+> failed, so a script is now the backstop:
+
+```bash
+./scripts/check_version_consistency.sh
+```
+
+> It compares #1 / #2 / #4 and exits 1 on any mismatch. **It must pass before
+> tagging a release** (see the "Release steps" section). #3 and #5 are outside
+> the script's reach and still need a manual check.
 
 ### Host SDK dependency — a hard constraint, the opposite trade-off from Android
 
@@ -82,7 +87,8 @@ dependencies are pinned exactly as well: SwiftProtobuf 1.30.0, AgoraRtcEngine_iO
 ## 3. Pre-release Checklist
 
 1. Confirm the release branch is correct and carries no unrelated changes
-2. **Verify all 5 version numbers from §2 one by one**, especially #4 (which has no build-time check)
+2. After updating all 5 version numbers from §2, run `./scripts/check_version_consistency.sh`
+   — it covers #1 / #2 / #4; **#3 (the cross-reference inside the podspec) and #5 (the git tag) still need a manual check**
 3. Confirm `CHANGELOG.md` is filled in (including the host SDK version this release depends on)
 4. Confirm the target version is not already taken on trunk
 5. If the host SDK was bumped, confirm `Package.swift:17` and `AvatarKitRTC.podspec:47` are in sync
@@ -123,7 +129,7 @@ Rules and the per-item checklist → `knowledge/workflows/release-workflow.md` �
 | File | Verified against | Gate question |
 |------|---------|---------|
 | [`overview.md`](overview.md) | `Sources/AvatarKitRTC/` | Do the module split, the provider abstraction, the jitter constants and the two lifecycle paths still hold? |
-| [`telemetry-fields.md`](telemetry-fields.md) | `Utils/Telemetry.swift` and its call sites | Is the metric / event list complete? Have the known gaps in §5 changed? **Is `TelemetryIdentity.sdkVersion` correct?** |
+| [`telemetry-fields.md`](telemetry-fields.md) | `Utils/Telemetry.swift` and its call sites | Is the metric / event list complete? Have the known gaps in §5 changed? `TelemetryIdentity.sdkVersion` is guaranteed by `check_version_consistency.sh` |
 | [`test-cases.md`](test-cases.md) | `Demo/RTCDemo/Integration/` | Are mock 43 / live 20 still correct? Has the id mapping against Android changed? |
 | [`release-process.md`](release-process.md) (this file) | podspec / Package.swift / scripts | Are the version list, the commands and the dependency versions still accurate? |
 | [`docs-map.md`](docs-map.md) | the `docs/` file listing | Were any docs added or removed without being registered? |
@@ -139,6 +145,7 @@ Requirements:
 
 ```bash
 # 1. Update the 5 version numbers from §2 (including TelemetryIdentity.swift)
+./scripts/check_version_consistency.sh         # must pass, otherwise telemetry ships the wrong version
 # 2. Update CHANGELOG.md
 # 3. Local verification (§4) + documentation alignment gate (§5)
 # 4. commit + tag
