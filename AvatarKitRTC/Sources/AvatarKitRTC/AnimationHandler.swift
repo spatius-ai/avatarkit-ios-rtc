@@ -774,6 +774,10 @@ public struct AnimationSessionSummary: Sendable {
 
         Telemetry.event("rtc_playback_stats", level: .info, [
             "provider": config.providerName,
+            // The join key to this round's playback trace: the trace hangs under
+            // the server's traceparent (see emitPlaybackTrace), so carrying the same
+            // id on the event is what lets one jump from an anomaly to that trace.
+            "conversation_id": conversationId,
             "avg_fps": avgFps,
             "frame_count": conversationFrameCount,
             "frames_lost": conversationLost,

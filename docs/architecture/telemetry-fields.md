@@ -224,9 +224,13 @@ Guard at `:730-732` (frame count > 0, or any jitter counter non-zero).
 flattens nested structures and rejects arrays of objects. Elements of the former are `{seq, ms, ticks, starved}`; the latter are `"12"` or
 `"12-15"`.
 
-> 🔴 **Does not carry `conversation_id`** (exactly as on android). Yet the trace's trace_id is derived from
-> it — the host SDK comment (`Tracker.swift:136-138`) says this id exists precisely "so a trace can
-> be found from the matching `rtc_playback_stats` event", and **iOS cannot deliver on that either**.
+`conversation_id` (`:778`) is the key linking this event to that round's playback trace: the trace hangs under the
+server-side traceparent, and only if the event carries the same id can you jump from an anomalous event to that trace — exactly what the
+host SDK comment (`Tracker.swift:136-138`) means by "so a trace can be found from the
+matching `rtc_playback_stats` event".
+
+> This field was previously missing; it has been added and now matches web. The same id is **still missing** on
+> `rtc_stream_stalled` and on the two jitter events (see §5).
 
 `EndReason` declares five values (`:74-80`), but there are only two assignment sites (`:458` / `:536`),
 so **`.disconnect` is never assigned** — the same dead value as web/android.
@@ -312,21 +316,20 @@ same as android, so a cross-platform dashboard must not stack it directly agains
 ### Shared with android (9 items)
 
 1. Buckets for the 4 `rtc_transport_*` metrics have landed in the host SDK (`c886419`) but are unreleased → production still uses default buckets
-2. `rtc_playback_stats` does not carry `conversation_id` → the path from an event to its trace is broken
-3. `rtc_jitter_buffer_overflow` has not followed web's removal
-4. `rtc_jitter_buffer_starved` deduplication semantics differ from web (edge-triggered)
-5. Inconsistent field naming on failed events (`reason` vs `description`)
-6. `EndReason.disconnect` is a dead value
-7. Trace wall clock is not ClockSync-calibrated, while the log channel is
-8. Four semantic divergences between `rtc_session_summary` and web (§2.3)
-9. `rtc_stream_stalled` is missing `conversation_id`
+2. `rtc_jitter_buffer_overflow` has not followed web's removal
+3. `rtc_jitter_buffer_starved` deduplication semantics differ from web (edge-triggered)
+4. Inconsistent field naming on failed events (`reason` vs `description`)
+5. `EndReason.disconnect` is a dead value
+6. Trace wall clock is not ClockSync-calibrated, while the log channel is
+7. Four semantic divergences between `rtc_session_summary` and web (§2.3)
+8. `rtc_stream_stalled` is missing `conversation_id`
 
 ### iOS-only (2 items)
 
-10. **`TelemetryIdentity.sdkVersion` is the only hand-written version constant across the three platforms** (§0) — SPM has no build-time
+9. **`TelemetryIdentity.sdkVersion` is the only hand-written version constant across the three platforms** (§0) — SPM has no build-time
     injection. It has drifted twice, and **the existing v1.0.0 data carries the wrong version number with no way to correct it retroactively**; HEAD is fixed,
     and `scripts/check_version_consistency.sh` prevents a recurrence
-11. **`emitPlaybackTrace` has no exception protection** — android wraps it in a try/catch, iOS runs unguarded
+10. **`emitPlaybackTrace` has no exception protection** — android wraps it in a try/catch, iOS runs unguarded
 
 ### Where iOS is better than the other two platforms (3 items)
 
