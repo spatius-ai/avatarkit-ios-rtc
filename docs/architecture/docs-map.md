@@ -24,13 +24,15 @@ Aligning these files with code fact is a hard release gate
 
 ## `decisions/` — architecture decision records
 
-Append-only record of what was done, one file per day. Never rewritten to match
-current reality.
+Why the code is the way it is: the alternatives that were considered and
+rejected. One file per decision, immutable once accepted — a reversed decision is
+marked `superseded` and a new record written, never edited in place.
 
 | File | Purpose |
 |------|---------|
 | [`README.md`](../decisions/README.md) | Index of this repo's ADRs |
 | [`_TEMPLATE.md`](../decisions/_TEMPLATE.md) | ADR template |
+| [`0001-telemetry-version-hand-written.md`](../decisions/0001-telemetry-version-hand-written.md) | ADR-0001 — Telemetry version stays hand-written, verified by a script |
 
 ## `history/` — archive
 

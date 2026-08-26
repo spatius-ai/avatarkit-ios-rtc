@@ -11,7 +11,7 @@ what the next person re-litigates.
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
-| _none yet_ | | | |
+| [0001](0001-telemetry-version-hand-written.md) | Telemetry version stays hand-written, verified by a script | accepted | 2026-08-26 |
 
 ## Writing one
 
