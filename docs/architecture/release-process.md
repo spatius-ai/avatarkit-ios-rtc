@@ -139,7 +139,11 @@ Requirements:
 - Verifying means **reading the code**, not going from memory.
 - Any drift found is **fixed in the release commit itself**, never deferred.
 - If a file cannot be brought up to date in time, postpone the release or revert the change.
-- `docs/iterations/` is **not** part of this gate.
+- `docs/decisions/` is **not** part of this gate. Once an ADR is accepted it is immutable;
+  when a decision is overturned, write a new one and mark the old one `superseded` — never
+  edit the original record to match current reality.
+  But **pointer files for cross-SDK ADRs must match the status of their source** — if the
+  source changes status, the pointer in this repo must follow.
 
 ## 6. Release steps
 
@@ -233,13 +237,13 @@ Apple Silicon is unaffected.
 4. **Public docs**: this repo has no standalone public documentation — `README.md`
    points at the web rtc-adapter docs. When the API changes, assess whether that
  shared document needs updating
-5. Append an entry for this release to [`../iterations/`](../iterations/), stating which
-   `architecture/` files were re-verified per §5 and what drift was fixed
+5. Record the outcome of the documentation alignment gate in the release commit
+   message: which `architecture/` files were verified and what drift was fixed. If
+   a decision was made this round, write a separate ADR → [`../decisions/`](../decisions/)
    (→ `knowledge/workflows/commit-workflow.md`)
 
 ## Related
 
-- Docs index → [`../README.md`](../README.md)
 - Docs map → [`docs-map.md`](docs-map.md)
 - Architecture → [`overview.md`](overview.md)
 - Telemetry → [`telemetry-fields.md`](telemetry-fields.md)

@@ -22,16 +22,15 @@ Aligning these files with code fact is a hard release gate
 | [`telemetry-fields.md`](telemetry-fields.md) | Telemetry events and fields emitted by this repo |
 | [`test-cases.md`](test-cases.md) | Test case inventory |
 
-## `iterations/` — history
+## `decisions/` — architecture decision records
 
 Append-only record of what was done, one file per day. Never rewritten to match
 current reality.
 
 | File | Purpose |
 |------|---------|
-| [`2026-08-25.md`](../iterations/2026-08-25.md) | Dated iteration entries |
-| [`README.md`](../iterations/README.md) | Index |
-| [`_TEMPLATE.md`](../iterations/_TEMPLATE.md) | Template for a new iteration entry |
+| [`README.md`](../decisions/README.md) | Index of this repo's ADRs |
+| [`_TEMPLATE.md`](../decisions/_TEMPLATE.md) | ADR template |
 
 ## `history/` — archive
 
