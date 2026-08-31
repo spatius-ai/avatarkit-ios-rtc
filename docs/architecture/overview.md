@@ -4,7 +4,7 @@ Layer: **current state** — describes the SDK as it is at HEAD. Present tense.
 Rewritten in place whenever the code changes; re-verified against source on every
 release (see the Documentation Alignment Gate section in this file).
 
-Pods `AvatarKitRTC` + `AvatarKitAgoraBridge`, v1.0.0. Swift 6.
+Pods `AvatarKitRTC` + `AvatarKitAgoraBridge`, v1.0.1. Swift 6.
 
 **This is the RTC glue layer** for the main SDK `AvatarKit`. It pulls animation
 data out of an RTC video stream and drives the main SDK's `AvatarView`.
@@ -117,8 +117,8 @@ frames carry a `[4B frameSeq]` prefix while transition frames do not (`:177-186`
 
 | Distribution | Main SDK dependency | Version |
 |--------------|--------------------|---------|
-| `Package.swift:17` | `avatarkit-ios-release` → `AvatarKit` | **`exact: "1.3.3"`** |
-| `AvatarKitRTC.podspec:47` | pod **`SpatiusAvatarKit`** | **`"1.3.3"`** |
+| `Package.swift:17` | `avatarkit-ios-release` → `AvatarKit` | **`exact: "1.3.4"`** |
+| `AvatarKitRTC.podspec:51` | pod **`SpatiusAvatarKit`** | **`"1.3.4"`** |
 
 > The pod is named `SpatiusAvatarKit` because `AvatarKit` was taken on trunk
 > (`podspec:45-46`); its `module_name` is still `AvatarKit`, so `import` is
@@ -127,7 +127,7 @@ frames carry a `[4B frameSeq]` prefix while transition frames do not (`:177-186`
 > **Unlike Android, iOS pins the main SDK exactly.** Android declares it
 > `compileOnly`, which produces no POM constraint at all — a host on an
 > incompatible version gets no check whatsoever. Both SPM and CocoaPods here
-> enforce 1.3.3.
+> enforce 1.3.4.
 
 Third-party deps are pinned too: SwiftProtobuf 1.30.0, AgoraRtcEngine_iOS 4.5.2.
 
@@ -273,7 +273,7 @@ Agora delegate callbacks are `nonisolated` and hop back via
 | | `AvatarKitRTC.podspec` | `AvatarKitAgoraBridge.podspec` |
 |---|---|---|
 | Sources | `Sources/AvatarKitRTC/**/*.swift` (`:24`) | `Sources/AvatarKitAgoraBridge/**/*.{h,mm}` (`:21`) |
-| Dependencies | AvatarKitAgoraBridge 1.0.0, SpatiusAvatarKit 1.3.3, SwiftProtobuf 1.30.0, AgoraRtcEngine_iOS 4.5.2 (`:44-49`) | AgoraRtcEngine_iOS 4.5.2 only (`:24`) |
+| Dependencies | AvatarKitAgoraBridge 1.0.1, SpatiusAvatarKit 1.3.4, SwiftProtobuf 1.30.0, AgoraRtcEngine_iOS 4.5.2 (`:44-51`) | AgoraRtcEngine_iOS 4.5.2 only (`:24`) |
 | Extra config | `EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64`, declared **twice** (`:34-39`) | `c++17` + `libc++` (`:25-28`) |
 
 **The split is required, not stylistic** (`RTC:41-43`, `Bridge:6-8`): the Swift

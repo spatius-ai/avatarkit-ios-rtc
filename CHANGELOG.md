@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.0.1] — 2026-08-31
+
+Internal telemetry only; no change to the public API or runtime behavior.
+
+### Fixed
+
+- **Reported SDK version was wrong** — the `1.0.0` release missed one hand-written
+  constant, so every record reported by that version carried `1.0.0-beta.9`, a
+  version that was never released. Fixed; keep this in mind when analyzing 1.0.0
+  telemetry, since the published artifacts cannot be corrected retroactively.
+- Per-round playback stats now carry the session identifier, so they can be
+  correlated with that round's traces. Previously only the web SDK included this
+  field.
+
+### Changed
+
+- Removed the per-frame reporting of buffer overflow. It flooded at frame rate
+  whenever the network backed up, and the impact of dropped frames is already
+  fully covered by the stall and frame-skip records in the per-round stats.
+  Aligned with web.
+- Playback traces now resolve their timestamps against the host SDK's calibrated
+  clock instead of reporting raw monotonic readings. A round previously landed
+  wherever the device's own clock happened to point, so it could not be lined up
+  against the server's records for the same round. Requires AvatarKit 1.3.4.
+
 ## [1.0.0] — 2026-08-17
 
 First stable release, rolling up all changes from the 1.0.0 beta line.

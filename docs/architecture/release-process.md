@@ -22,13 +22,18 @@ changes. Verified against build config on every release
 
 ## 2. Version numbers — 5 places, 3 of them checked by a script
 
-| # | Location | Current value | Nature |
-|---|------|--------|------|
-| 1 | `AvatarKitRTC/AvatarKitRTC.podspec:3` | `1.0.0` | pod version |
-| 2 | `AvatarKitRTC/AvatarKitAgoraBridge.podspec:3` | `1.0.0` | pod version, **must stay in sync with #1** |
-| 3 | `AvatarKitRTC.podspec:44` | `spec.dependency "AvatarKitAgoraBridge", "1.0.0"` | **Cross-reference — must be bumped too** |
-| 4 | `Sources/AvatarKitRTC/Utils/TelemetryIdentity.swift` | `1.0.0` | Hand-written constant, injected into telemetry as `sdk_version` |
-| 5 | git tag `v<version>` | `v1.0.0` | Both podspecs rely on it via `:tag => "v#{spec.version}"` |
+(The current values are deliberately not written down here: that would mean
+editing this section on every release — exactly the kind of maintenance burden
+this section exists to warn about. For the actual values, run
+`./scripts/check_version_consistency.sh`.)
+
+| # | Location | Nature |
+|---|------|------|
+| 1 | `spec.version` in `AvatarKitRTC/AvatarKitRTC.podspec` | pod version |
+| 2 | `spec.version` in `AvatarKitRTC/AvatarKitAgoraBridge.podspec` | pod version, **must stay in sync with #1** |
+| 3 | `spec.dependency "AvatarKitAgoraBridge", …` in `AvatarKitRTC.podspec` | **Cross-reference — must be bumped too**; not covered by the script |
+| 4 | `sdkVersion` in `Sources/AvatarKitRTC/Utils/TelemetryIdentity.swift` | Hand-written constant, injected into telemetry as `sdk_version` |
+| 5 | git tag `v<version>` | Both podspecs rely on it via `:tag => "v#{spec.version}"`; not covered by the script |
 
 `Package.swift` itself **contains no version number** — the SPM version is
 determined entirely by the git tag. This is a structural difference from Android,
@@ -39,15 +44,15 @@ which records the version in `gradle.properties`.
 > Swift Package Manager has no build-time substitution mechanism: a package
 > cannot read its own podspec or git tag, and it cannot generate constants.
 > Compare with web (vite `define` injects `__RTC_SDK_VERSION__` from
-> package.json) and Android (`BuildConfig.SDK_VERSION` ←
-> `gradle.properties`) — **iOS is the only platform with no automatic source**,
-> so this constant *is* the source of truth.
+> package.json) and Android (`BuildConfig.SDK_VERSION` ← `gradle.properties`) —
+> **iOS is the only platform with no automatic source**, so this constant *is*
+> the source of truth.
 >
 > Forgetting to bump it produces no build error at all — every telemetry record
 > just carries a version that was never released, while production behaves
 > perfectly normally. **It has already drifted twice**: it sat at beta.6 for the
 > entire beta.7 cycle (fixed in `dc3aee9`), and it sat at beta.9 after the 1.0.0
-> release (corrected this round). Both times "check it by hand each release"
+> release (corrected in 1.0.1). Both times "check it by hand each release"
 > failed, so a script is now the backstop:
 
 ```bash
@@ -62,12 +67,13 @@ which records the version in `gradle.properties`.
 
 | Distribution | Declaration | Location |
 |------|------|------|
-| SPM | `.package(url: …avatarkit-ios-release, exact: "1.3.3")` | `Package.swift:17` |
-| CocoaPods | `spec.dependency "SpatiusAvatarKit", "1.3.3"` | `AvatarKitRTC.podspec:47` |
+| SPM | `.package(url: …avatarkit-ios-release, exact: "1.3.4")` | `Package.swift:17` |
+| CocoaPods | `spec.dependency "SpatiusAvatarKit", "1.3.4"` | `AvatarKitRTC.podspec:51` |
 
 Both pin an **exact version**; the comment at `Package.swift:15-16` explains why:
 it keeps SPM and the podspec locked to the same host SDK version. Third-party
-dependencies are pinned exactly as well: SwiftProtobuf 1.30.0, AgoraRtcEngine_iOS 4.5.2.
+dependencies are pinned exactly as well: SwiftProtobuf 1.30.0,
+AgoraRtcEngine_iOS 4.5.2.
 
 > **Contrast with Android — each side pays a different price:**
 >
@@ -77,8 +83,8 @@ dependencies are pinned exactly as well: SwiftProtobuf 1.30.0, AgoraRtcEngine_iO
 > version requirement can only be stated in README prose.
 >
 > The iOS `exact:` is a **real constraint the resolver enforces**: a wrong
-> version fails during dependency resolution. The price is that **if the host App
-> also depends on AvatarKit at any version other than 1.3.3, SPM fails to
+> version fails during dependency resolution. The price is that **if the host app
+> also depends on AvatarKit at any version other than 1.3.4, SPM fails to
 > resolve outright — there is no room to negotiate**. Whenever the host SDK is
 > bumped, this repo must ship a matching release, or host apps cannot upgrade.
 >
@@ -96,13 +102,19 @@ dependencies are pinned exactly as well: SwiftProtobuf 1.30.0, AgoraRtcEngine_iO
 ## 4. Local verification
 
 ```bash
-swift build # SPM build
-xcodebuild test -scheme AvatarKitRTC ... # runs only 1 smoke unit test
+xcodebuild build -scheme AvatarKitRTC \
+  -destination 'platform=iOS Simulator,name=<a simulator you have>'
 ```
 
-> `xcodebuild test` covers only the single smoke case in `AvatarKitRTCTests`;
+> **Do not use bare `swift build` here.** It targets macOS, and the Agora SDK
+> ships iOS binaries only, so it fails on `AgoraRtcKit/AgoraRtcEngineKit.h not
+> found` regardless of the state of this repo's own code. An iOS destination is
+> required.
+
+> `xcodebuild test` currently fails to launch: the test bundle cannot resolve
+> `@rpath/AgoraRtcKit.framework`. It only ever covered a single smoke case, and
 > **it does not reach the 63 integration cases** (see
-> [`test-cases.md`](test-cases.md) §1).
+> [`test-cases.md`](test-cases.md) §1) — those run from the demo app on a device.
 
 **Manual verification on a device** (inside the demo app):
 
@@ -240,9 +252,6 @@ Apple Silicon is unaffected.
 5. Record the outcome of the documentation alignment gate in the release commit
  message: which `architecture/` files were verified and what drift was fixed. If
  a decision was made this round, write a separate ADR → [`../decisions/`](../decisions/)
- (→ `knowledge/workflows/commit-workflow.md`)
-
-## Related
 
 - Docs map → [`docs-map.md`](docs-map.md)
 - Architecture → [`overview.md`](overview.md)

@@ -12,7 +12,7 @@ How this SDK works **right now**. Rewritten in place when the code changes.
 Aligning these files with code fact is a hard release gate
 (see the Documentation Alignment Gate section in this file).
 
-**All five files were verified against code on 2026-08-26 at v1.0.0.**
+**All five files were verified against code on 2026-08-27 at v1.0.1.**
 
 | File | Purpose |
 |------|---------|

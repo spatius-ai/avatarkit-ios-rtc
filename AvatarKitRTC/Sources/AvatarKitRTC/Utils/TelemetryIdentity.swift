@@ -29,7 +29,7 @@ enum TelemetryIdentity {
     ///
     /// `scripts/check_version_consistency.sh` now fails the build when this and
     /// the two podspecs disagree; the release process runs it before tagging.
-    static let sdkVersion = "1.0.0"
+    static let sdkVersion = "1.0.1"
 
     @MainActor static func claim() {
         AvatarSDK.inject([

@@ -4,7 +4,7 @@ Layer: **current state** — rewritten in place whenever tests are added, remove
 or renamed. Verified against the test sources on every release
 (see the Documentation Alignment Gate section in this file).
 
-Pods `AvatarKitRTC` + `AvatarKitAgoraBridge`, v1.0.0.
+Pods `AvatarKitRTC` + `AvatarKitAgoraBridge`, v1.0.1.
 
 ## 1. Two layers
 

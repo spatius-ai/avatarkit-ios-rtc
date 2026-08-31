@@ -1,7 +1,7 @@
 # Telemetry Fields — iOS RTC SDK
 
 Layer: **current state** — describes what `AvatarKitRTC` **actually emits at
-HEAD** (v1.0.0). Rewritten in place whenever an event or field changes;
+HEAD** (v1.0.1). Rewritten in place whenever an event or field changes;
 re-verified against the telemetry call sites on every release
 (see the Documentation Alignment Gate section in this file).
 

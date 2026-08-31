@@ -906,7 +906,15 @@ public struct AnimationSessionSummary: Sendable {
         guard !conversationId.isEmpty, conversationStartTime > 0 else { return }
 
         let quality = conversationQuality
-        let startMs = Int64(conversationStartTime)
+        // Marks are collected on the monotonic clock; they are resolved to the
+        // timeline here (server clock preferred, local as fallback) so this round
+        // lands on the same axis as the server's spans. Child span endpoints are
+        // resolved one by one as well — resolving only the root would shift the
+        // whole inner structure relative to it.
+        func toTimeline(_ mono: TimeInterval) -> Int64 {
+            RTCTelemetry.resolveMonoTimestamp(Int64(mono))
+        }
+        let startMs = toTimeline(conversationStartTime)
         let endMs = startMs + Int64(durationMs)
 
         guard let trace = Telemetry.startPlaybackTrace(
@@ -920,9 +928,9 @@ public struct AnimationSessionSummary: Sendable {
         ) else { return }
 
         let startTransitionEnd = quality.startTransitionEndedAt > 0
-            ? Int64(quality.startTransitionEndedAt) : startMs
+            ? toTimeline(quality.startTransitionEndedAt) : startMs
         if quality.startTransitionBeganAt > 0 {
-            let began = Int64(quality.startTransitionBeganAt)
+            let began = toTimeline(quality.startTransitionBeganAt)
             trace.span(
                 "start_transition", began, startTransitionEnd,
                 [
@@ -938,13 +946,13 @@ public struct AnimationSessionSummary: Sendable {
         // Animation frames run from the end of the start transition until the
         // end transition takes over.
         let speakingEnd = quality.endTransitionBeganAt > 0
-            ? Int64(quality.endTransitionBeganAt) : endMs
+            ? toTimeline(quality.endTransitionBeganAt) : endMs
         var cursor = startTransitionEnd
         var playIdx = 0
         var stallIdx = 0
         for run in quality.stalls {
-            let runStart = max(Int64(run.startedAt), cursor)
-            let runEnd = min(Int64(run.endedAt), speakingEnd)
+            let runStart = max(toTimeline(run.startedAt), cursor)
+            let runEnd = min(toTimeline(run.endedAt), speakingEnd)
             if runStart > cursor {
                 playIdx += 1
                 trace.span("playing_\(playIdx)", cursor, runStart, ["dur_ms": Int(runStart - cursor)])
@@ -970,7 +978,7 @@ public struct AnimationSessionSummary: Sendable {
         }
 
         if quality.endTransitionBeganAt > 0 {
-            let began = Int64(quality.endTransitionBeganAt)
+            let began = toTimeline(quality.endTransitionBeganAt)
             trace.span(
                 "end_transition", began, endMs,
                 [
@@ -985,7 +993,7 @@ public struct AnimationSessionSummary: Sendable {
         // Placed at the moment the drain loop gave up on the missing frames, so
         // each one lines up with the stall it ended.
         for (idx, range) in quality.skipped.enumerated() {
-            let at = Int64(range.at)
+            let at = toTimeline(range.at)
             trace.span(
                 "skip_\(idx + 1)", at, at,
                 [
@@ -1559,7 +1567,16 @@ public struct AnimationSessionSummary: Sendable {
         PlaybackProbe.shared.record(source: source, seq: seq, gapMs: gap, isRecovered: isRecovered)
     }
 
+    /// A monotonic clock reading, in milliseconds. **Not a wall clock.**
+    ///
+    /// Every time mark within a round is recorded on this axis and is resolved to
+    /// a timeline instant only when `emitPlaybackTrace` reports the spans. Mixing
+    /// the two clocks makes spans drift apart from each other whenever the main
+    /// thread is blocked; a wall clock additionally jumps as a whole (NTP
+    /// correction, the user changing the clock), and a round spanning such a jump
+    /// reports overlapping or even backwards spans. Web likewise collects with
+    /// `performance.now()` and resolves at report time.
     private func nowMs() -> TimeInterval {
-        Date().timeIntervalSince1970 * 1000
+        TimeInterval(RTCTelemetry.monoNowMs())
     }
 }
