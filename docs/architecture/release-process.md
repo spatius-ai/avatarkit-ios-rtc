@@ -169,7 +169,8 @@ git commit -m "release: v<version>"
 git tag v<version>
 git push origin main && git push origin v<version>
 
-# 5. Manual gate — stop here and wait for the release owner's confirmation
+# 5. List the execution summary (§6.1), then the manual gate — stop and wait
+#    for the release owner's confirmation
 
 # 6. Publish to CocoaPods — the order matters
 cd AvatarKitRTC
@@ -190,6 +191,32 @@ pod trunk push AvatarKitRTC.podspec # then the main pod
 > **The tag must be pushed first**: the source of both podspecs is
 > `:tag => "v#{spec.version}"`, and trunk clones that tag. If the tag is not on
 > the remote, the push fails immediately.
+
+### 6.1 Pre-publish execution summary (required)
+
+**At the manual gate, list the actual result of every step of this release** — not
+"done" or "checked", but the real values and output. The gate reviews this summary.
+
+| Step | Actual result to report |
+|------|-------------------------|
+| §2 Version numbers | The real value at **all 5 locations**, plus the output of `./scripts/check_version_consistency.sh` |
+| Host SDK dependency | Which `SpatiusAvatarKit` version this release requires, and whether it is already published |
+| §3 Pre-release Checklist | Conclusion for each item |
+| §4 Local verification | What was actually run and its outcome |
+| §5 Documentation alignment gate | Which `architecture/` files were verified |
+| Bridge pod | Whether `AvatarKitAgoraBridge` at this version is already on the CDN (the main pod cannot resolve without it) |
+| Tag | Confirmed pushed to the remote — trunk clones the tag, an unpushed tag fails immediately |
+| CHANGELOG | Written, consistent with what actually changed |
+
+> **Why report results instead of ticking boxes**: a tick cannot distinguish "did it"
+> from "believed it was done".
+>
+> The Flutter SDK shipped 1.3.4 and 1.3.5 with the entire iOS xcframework inside the
+> package (~67 MB extra each), both times claiming the artifact had been checked; 1.3.6
+> then fixed the size but shipped a stale version number in README — a line its own
+> process doc marks "must change on every release", in red. **A process document has no
+> effect on an executor who does not read it.** Requiring the actual values to be written
+> out is what makes "did not read it" visible at the gate.
 
 ### Offline xcframework delivery (the third channel)
 
