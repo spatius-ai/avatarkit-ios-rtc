@@ -529,6 +529,36 @@ enum MockTestCases {
             }
             try ctx.assert(saw, "expected reconnecting state change")
         },
+        TestCase(id: "mock.evt.conversation-state",
+                 name: "conversationStateChanged: speaking once, idle once, getter tracks",
+                 group: "Mock: Events",
+                 timeoutMs: 10_000) { ctx in
+            guard let mock = ctx.mock else { throw AssertionError(message: "mock-only") }
+            ctx.resetEvents()
+            try ctx.assert(ctx.player.conversationState == .idle, "idle before the round")
+
+            // The dummy payload cannot seed a start transition (the renderer
+            // rejects it), so .speaking comes from the first drained stream
+            // frame — the same path a lost transition packet takes.
+            mock.injectTransitionStart(dummyProtobuf(), frameCount: 8)
+            await ctx.wait(100)
+            await pushFrames(ctx, count: 10, markLastAsEnd: true)
+            try ctx.assert(ctx.player.conversationState == .speaking, "speaking while frames render")
+
+            // A real end transition (12 frames on the 40ms clock), then the
+            // hand-back to idle; the trailing idle packet must add nothing.
+            mock.injectTransitionEnd(dummyProtobuf(), frameCount: 12)
+            await ctx.wait(1_000)
+            mock.injectIdleStart()
+            await ctx.wait(200)
+
+            let states = ctx.capturedEvents.compactMap { event -> RTCConversationState? in
+                if case .conversationStateChanged(let s) = event { return s }
+                return nil
+            }
+            try ctx.assert(states == [.speaking, .idle], "expected [speaking, idle], got \(states)")
+            try ctx.assert(ctx.player.conversationState == .idle, "idle after the end transition")
+        },
     ]
 
     // MARK: - Group I — AvatarPlayer guards

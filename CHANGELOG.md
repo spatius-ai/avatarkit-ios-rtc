@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Conversation state callback.** `AvatarPlayerEvent.conversationStateChanged(RTCConversationState)`
+  fires when the avatar starts or stops speaking on screen, and
+  `AvatarPlayer.conversationState` (`RTCConversationState`: `.idle` / `.speaking`)
+  exposes the current value. The state is render-level: `.speaking` begins with
+  the first rendered frame of a round (its opening transition, or the first
+  stream frame if that packet was lost); `.idle` begins once the closing
+  transition has fully played out, or when playback is cut back to idle (stall,
+  bare idle packet, disconnect / detach). Only actual changes are reported, and
+  nothing fires at construction. The main SDK's `onConversationState` callback
+  does not fire in RTC mode — use this event instead. Aligned with web and
+  Android. Hosts that `switch` exhaustively over `AvatarPlayerEvent` need to
+  handle the new case.
+
 ## [1.1.0] — 2026-10-19
 
 ### Changed

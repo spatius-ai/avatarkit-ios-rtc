@@ -609,6 +609,7 @@ final class TestContextImpl: TestContext {
         case .error(let m): return "error(\(m))"
         case .stalled: return "stalled"
         case .connectionStateChanged(let s): return "connState(\(s.rawValue))"
+        case .conversationStateChanged(let s): return "convState(\(s.rawValue))"
         }
     }
 }

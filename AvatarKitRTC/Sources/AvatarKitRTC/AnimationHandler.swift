@@ -30,6 +30,10 @@ struct AnimationHandlerConfig {
     var maxBufferDelayMs: Int = 80
     var providerName: String = ""
     var onStreamStalled: (@MainActor () -> Void)?
+    /// Render-level conversation state flipped (see `AnimationHandler.setIdle`).
+    /// Edge-triggered: never called for a write that leaves the state as it
+    /// was, and never at construction.
+    var onConversationStateChanged: (@MainActor (RTCConversationState) -> Void)?
 }
 
 /// Jitter buffer state machine.
@@ -235,7 +239,8 @@ public struct AnimationSessionSummary: Sendable {
 
     /// Whether the renderer is currently showing AvatarKit's idle loop. Guards
     /// the trailing idle packets that follow an end transition from redundantly
-    /// resetting the idle loop.
+    /// resetting the idle loop. Written only through `setIdle(_:)`, which is
+    /// what reports the change outward.
     private var isIdle = true
     /// Payload of the frame last put on screen, for the tail check.
     private var lastRenderedPayload: Data?
@@ -352,6 +357,10 @@ public struct AnimationSessionSummary: Sendable {
         renderedFrameCount += 1
         if isRecovered { conversationRecovered += 1 }
 
+        // Same hand-over as the buffered path: the first stream frame put on
+        // screen is where speaking begins, whether or not a start transition
+        // preceded it.
+        setIdle(false)
         renderer.renderFromProtobuf(protobufData)
         logRenderedFrame(source: "direct", seq: frameSeq, isRecovered: isRecovered)
 
@@ -545,7 +554,7 @@ public struct AnimationSessionSummary: Sendable {
         // idle frame index to 0, which snaps the pose mid-loop instead of
         // leaving the running idle animation untouched.
         if isIdle { return }
-        isIdle = true
+        setIdle(true)
         stopPlaybackClock()
         renderer.renderFrame(nil, startIdle: true)
         logRenderedFrame(source: "idle", seq: nil, isRecovered: false)
@@ -608,9 +617,26 @@ public struct AnimationSessionSummary: Sendable {
     func dispose() {
         stopTransition()
         stopWatchdog()
+        // Reset the idle flag silently — a direct store, not setIdle(), so no
+        // callback fires. The handler outlives a reconnect, and disconnect() /
+        // detach() dispose it *before* AvatarPlayer plays its own transition
+        // to idle: left false, the next round's first .speaking edge would be
+        // swallowed by setIdle's dedupe. The host-visible final .idle for this
+        // teardown is emitted by AvatarPlayer once that transition has played.
+        isIdle = true
     }
 
     // MARK: - Private
+
+    /// The only writer of `isIdle`. Reports the flip through
+    /// `config.onConversationStateChanged` exactly when the flag actually
+    /// changes, so every caller may set it unconditionally on its own render
+    /// path and the outward state stays edge-triggered.
+    private func setIdle(_ idle: Bool) {
+        if idle == isIdle { return }
+        isIdle = idle
+        config.onConversationStateChanged?(idle ? .idle : .speaking)
+    }
 
     private func ensureSessionActive(frameSeq: Int?) {
         if isInSession { return }
@@ -1346,7 +1372,7 @@ public struct AnimationSessionSummary: Sendable {
             conversationDropped += 1
             return
         }
-        isIdle = false
+        setIdle(false)
         renderer.renderFromProtobuf(frame.protobufData)
         lastRenderedPayload = frame.protobufData
         lastRenderedFrameSeq = frame.seq
@@ -1401,6 +1427,11 @@ public struct AnimationSessionSummary: Sendable {
                 isInSession = false
                 lastRenderedFrameSeq = -1
                 hasHandledTransitionStart = false
+                // The end transition has fully played out: this is where the
+                // round is back to idle. Flag it, as startIdle() does on the
+                // abnormal routes — otherwise the trailing idle packet would
+                // re-enter idle and snap the pose mid-loop.
+                setIdle(true)
                 renderer.renderFrame(nil, startIdle: true)
                 logRenderedFrame(source: "idle", seq: nil, isRecovered: false)
                 return true
@@ -1421,7 +1452,7 @@ public struct AnimationSessionSummary: Sendable {
             return false
         }
         let frame = transitionFrames[transitionFrameIndex]
-        isIdle = false
+        setIdle(false)
         renderer.renderFrame(frame, startIdle: false)
         // The picture moved, so any freeze is over — a transition frame ends it
         // exactly as a stream frame does. Closing on the render itself rather

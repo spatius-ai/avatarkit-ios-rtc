@@ -16,10 +16,10 @@ ObjC++ bridge under `Sources/AvatarKitAgoraBridge/`.
 
 | File | Lines | Responsibility |
 |------|------:|---------------|
-| `AvatarPlayer.swift` | 763 | **Entry point.** Lifecycle, provider event fan-out, telemetry aggregation, transport-stats sampling. Holds two `private` bridges: `ViewRendererAdapter` (`:701`), `AnimationCallbacksBridge` (`:741`) |
-| `AnimationHandler.swift` | 1556 | **Playback core.** Jitter buffer, the single playback clock, transition generation, stall watchdog, per-round stats and traces. Not public |
+| `AvatarPlayer.swift` | 792 | **Entry point.** Lifecycle, provider event fan-out, telemetry aggregation, transport-stats sampling. Holds two `private` bridges: `ViewRendererAdapter` (`:730`), `AnimationCallbacksBridge` (`:770`) |
+| `AnimationHandler.swift` | 1613 | **Playback core.** Jitter buffer, the single playback clock, transition generation, stall watchdog, per-round stats and traces. Not public |
 | `RTCProvider.swift` | 249 | `AnimationTrackCallbacks` (`:7`), `TransportStats` (`:52`), `RTCProviderEvent` (`:102`), `RTCProvider` (`:112`), `BaseRTCProvider` (`:167`) |
-| `Types.swift` | 86 | Pure data types; imports only Foundation |
+| `Types.swift` | 97 | Pure data types; imports only Foundation |
 | `Providers/AgoraProvider.swift` | 560 | The only provider. Engine lifecycle, encoded-frame observer, external-engine attach, audio publishing, transport stats |
 | `Providers/H264SEIExtractor.swift` | 163 | **Stateless `enum`.** NAL slicing, SEI NALU parsing, EBSP→RBSP |
 | `Providers/SEIPacketParser.swift` | 351 | `@MainActor final class`. Our own SEI wire format → typed events. **Carries session state** |
@@ -33,36 +33,71 @@ ObjC++ bridge under `Sources/AvatarKitAgoraBridge/`.
 
 ## 2. Public API
 
-`AvatarPlayer` (`@MainActor public final class`, `:46`):
+`AvatarPlayer` (`@MainActor public final class`, `:50`):
 
 ```swift
-public func connect(_ config: RTCConnectionConfig) async throws // :173
-public func attach(to engine: AgoraRtcEngineKit) throws // :224 ← synchronous
-public func detach() async // :258
-public func disconnect() async // :283
-public func publishAudio() async throws // :334
-public func unpublishAudio() async // :348
-public func publishExternalPCM(sampleRate:channels:) async throws // :360
-public func pushPCM(_ data: Data) async // :376
-public func reconnect() async throws // :381
-@discardableResult public func subscribe(_:) -> Int // :417
-public func getNativeClient() -> Any? // :426
-public var isConnected: Bool // :57
-public var sessionSummary: AnimationSessionSummary // :63
+public func connect(_ config: RTCConnectionConfig) async throws // :189
+public func attach(to engine: AgoraRtcEngineKit) throws // :240 ← synchronous
+public func detach() async // :274
+public func disconnect() async // :303
+public func publishAudio() async throws // :354
+public func unpublishAudio() async // :368
+public func publishExternalPCM(sampleRate:channels:) async throws // :380
+public func pushPCM(_ data: Data) async // :396
+public func reconnect() async throws // :401
+@discardableResult public func subscribe(_:) -> Int // :437
+public func getNativeClient() -> Any? // :446
+public var isConnected: Bool // :61
+public var sessionSummary: AnimationSessionSummary // :76
+public private(set) var conversationState: RTCConversationState // :70
 ```
 
-Also public: `AvatarPlayerOptions`, `AvatarPlayerEvent`, `AvatarPlayerError`,
+Also public: `AvatarPlayerOptions`, `AvatarPlayerEvent` (with
+`.conversationStateChanged(RTCConversationState)`, `:32`), `AvatarPlayerError`,
 `AgoraProvider`, `AgoraProviderError`, the three provider abstractions, all of
-`Types.swift`, `RTCLogLevel`, `AnimationSessionSummary`, and the two diagnostic
+`Types.swift` (including `RTCConversationState`, `Types.swift:18`), `RTCLogLevel`, `AnimationSessionSummary`, and the two diagnostic
 tools `PlaybackProbe` / `TelemetryRecorder`.
 
 `AnimationHandler` itself is **not** public — only its `AnimationSessionSummary`
-and `getSessionSummary()` (`:588`) are.
+and `getSessionSummary()` (`:597`) are.
 
 > ⚠️ **`subscribe(_:)` returns a token for an `unsubscribe(_:)` that does not
-> exist.** The doc comment (`:415`) promises it; grep finds no such method on
+> exist.** The doc comment (`:435`) promises it; grep finds no such method on
 > `AvatarPlayer` (the `unsubscribeAnimationTrack` hits are the provider's,
 > unrelated). The returned `Int` has no use and `subscribers` only ever grows.
+
+### Conversation state
+
+`AvatarPlayer.conversationState` (`:70`) and
+`AvatarPlayerEvent.conversationStateChanged` (`:32`) report whether the
+avatar is speaking on screen, as `RTCConversationState.idle` / `.speaking`
+(`Types.swift:18`) — exactly two values.
+
+The semantics are **render-level and edge-triggered**. `.speaking` begins when
+the first frame of a round is put on screen: the opening transition's first
+frame, or the first stream frame when the transition packet was lost. `.idle`
+begins when the closing transition has fully played out, or when playback is cut
+back to idle without one — stall watchdog, bare idle packet, provider
+disconnect, or the host's own `disconnect()` / `detach()`. The event fires only
+on an actual change; the initial value is `.idle` and nothing fires at
+construction.
+
+The source of truth is `AnimationHandler.isIdle`, written only through
+`setIdle(_:)` (`AnimationHandler.swift:635`), which reports a flip via
+`AnimationHandlerConfig.onConversationStateChanged` (`:36`). Every render
+path goes through it — buffered frames, the direct path (`:360`), transition
+frames, and the end of the closing transition (`:1430`). The player keeps the
+single player-level value and emits from there (`AvatarPlayer.swift:539`);
+the host-initiated teardown `playTransitionToIdle()` runs after the handler has
+been disposed, so the player closes the round itself (`:300`). The
+handler outlives a reconnect, so `dispose()` resets the flag silently — a direct
+store, no callback (`AnimationHandler.swift:626`) — or the next round's
+first `.speaking` edge would be deduplicated away.
+
+> **The main SDK's `onConversationState` never fires in RTC mode.** That
+> callback belongs to the main SDK's own driving path; RTC bypasses it and drives
+> `AvatarView` frame by frame, so hosts must use this event instead. Same
+> semantics on web and Android.
 
 ## 3. Provider abstraction
 
@@ -89,10 +124,10 @@ Agora C++ IVideoEncodedFrameObserver (Agora's aosl_main thread)
  ├─ H264SEIExtractor.extractUserDataPayloads (:364)
  └─ Task { @MainActor } (:380)
  └─ SEIPacketParser.handleSEIPayload (:386)
- └─ AnimationTrackCallbacks → AnimationCallbacksBridge (:741)
- └─ AvatarPlayer.handleAnimationData / … (:460-503)
+ └─ AnimationTrackCallbacks → AnimationCallbacksBridge (:770)
+ └─ AvatarPlayer.handleAnimationData / … (:480-523)
  └─ AnimationHandler → jitter buffer → clock tick
- └─ AvatarView.renderFromProtobufSync (:710)
+ └─ AvatarView.renderFromProtobufSync (:739)
 ```
 
 ### Why two SEI classes
@@ -135,18 +170,18 @@ observer after joining (0 frames vs 106 with 4.5.2, 2026-10-19); 4.6.x changed t
 signature (`Package.swift:19-24`).
 
 **Only `AvatarView` is used — there is no `AvatarController`.** Calls go through
-`ViewRendererAdapter` (`AvatarPlayer.swift:701-735`):
+`ViewRendererAdapter` (`AvatarPlayer.swift:730-764`):
 `renderFromProtobufSync`, `renderFrameSync`, `generateTransitionToFrameSync`,
 `generateTransitionToIdle`.
 
-**Mode is enforced with `preconditionFailure`** (`:119-131`) — the host must have
+**Mode is enforced with `preconditionFailure`** (`:132-144`) — the host must have
 initialized with `drivingServiceMode: .rtc`, and a release build traps too. The
-reasoning (`:101-118`): a wrong mode tags the whole session's telemetry with the
+reasoning (`:114-131`): a wrong mode tags the whole session's telemetry with the
 wrong `dsm`, and it cannot be corrected after the fact. This is stricter than
 Android, which throws a catchable exception.
 
 **Telemetry identity is claimed at `AvatarPlayer` construction**
-(`AvatarPlayer.swift:141` → `TelemetryIdentity.claim()`), injecting
+(`AvatarPlayer.swift:154` → `TelemetryIdentity.claim()`), injecting
 `sdk_package = "spatius-ios-rtc"` and `sdk_version`.
 
 > That timing works **only because of an iOS-specific window**
@@ -176,7 +211,7 @@ Android, which throws a catchable exception.
 It has the same `AvatarRendererAdapter` abstraction as Android and web
 (`AnimationHandler.swift:15-21`, five methods), **but `AnimationHandler.swift:2`
 is `@_spi(RTC) import AvatarKit`** and the protocol's own signatures carry the
-main SDK's `Frame` type (`:17-19`), as does `transitionFrames: [Frame]` (`:172`).
+main SDK's `Frame` type (`:17-19`), as does `transitionFrames: [Frame]` (`:176`).
 So the abstraction isolates `AvatarView`, not AvatarKit's type system —
 **identical to Android; web is the only one with a truly zero-dependency
 handler.**
@@ -192,52 +227,52 @@ handler.**
 
 | Constant | Value | Location |
 |----------|------:|----------|
-| `stallTimeoutMs` | 5000 | `AnimationHandler.swift:199` |
-| `bufferMaxSize` | 4 | `:213` |
-| `bufferInitialFill` | 2 | `:214` |
-| `frameIntervalMs` | 40 | `:234` |
+| `stallTimeoutMs` | 5000 | `AnimationHandler.swift:203` |
+| `bufferMaxSize` | 4 | `:217` |
+| `bufferInitialFill` | 2 | `:218` |
+| `frameIntervalMs` | 40 | `:238` |
 | `transitionStartFrameCount` | 8 | `:25` |
 | `transitionEndFrameCount` | **40** | `:26` |
 | `maxBufferDelayMs` | 80 | `:30` |
-| `DISCONNECT_TRANSITION_FRAMES` | 12 | `AvatarPlayer.swift:47` |
+| `DISCONNECT_TRANSITION_FRAMES` | 12 | `AvatarPlayer.swift:51` |
 
 `SEIPacketParser.swift:34-35` mirrors the two transition counts, same as Android.
 
 **Actual frame counts** are structurally identical to the other two: the start
-transition plays `8 + (bufferInitialFill - 1) = 9` (`:409-410`), generating N+1
-and dropping the last (`:424-425`) because the generator's final frame equals the
+transition plays `8 + (bufferInitialFill - 1) = 9` (`:418-419`), generating N+1
+and dropping the last (`:433-434`) because the generator's final frame equals the
 target, which is also the stream's first frame.
 
-**The end transition owes slots before it begins** (`:475-478`) and **only slots
-that actually rendered pay the debt** (`:1280`). `beginEndTransition` resumes the
-existing grid rather than re-anchoring (`:525`).
+**The end transition owes slots before it begins** (`:484-487`) and **only slots
+that actually rendered pay the debt** (`:1323`). `beginEndTransition` resumes the
+existing grid rather than re-anchoring (`:534`).
 
-**Start is judged by seq, not buffered count** (`:1108-1109`) — `:1092-1107`
+**Start is judged by seq, not buffered count** (`:1151-1153`) — `:1135-1150`
 explains that counting frames leaves the picture permanently behind the audio
 when a round opens with a loss.
 
-**One clock**: `playbackTick()` (`:1269-1293`) renders exactly one thing per slot
-(`:1272`). `:216-223` records the bug this fixed — two independent chains once
+**One clock**: `playbackTick()` (`:1312-1367`) renders exactly one thing per slot
+(`:1315`). `:220-227` records the bug this fixed — two independent chains once
 produced a 28ms/40ms seam at the hand-over with two writers on the renderer at
 once.
 
 ## 7. Lifecycle — two routes
 
-**Route A (managed)**: `connect` (`:173`) → `provider.connect`
+**Route A (managed)**: `connect` (`:189`) → `provider.connect`
 (`AgoraProvider.swift:58`): create engine → `enable_sei` → `.chorus` audio
 scenario → `.broadcaster` → **install observer, then join** (`:88-92`) → await
 Connected or **15s timeout** (`:107-117`).
-`disconnect` (`:283`) → unpublish → stop sampling → `provider.disconnect()`
+`disconnect` (`:303`) → unpublish → stop sampling → `provider.disconnect()`
 (observer detach, `leaveChannel`, `destroy`) → `dispose()` →
 **`playTransitionToIdle()`** (12 frames) → `rtc_session_summary` +
 `rtc_disconnected`.
 
-**Route B (external engine)**: `attach(to:)` (`:224`) is **synchronous
+**Route B (external engine)**: `attach(to:)` (`:240`) is **synchronous
 `throws`** — `guard let agora = provider as? AgoraProvider else { throw
-.externalEngineUnsupported }` (`:228-230`) → `attachExternalEngine`
+.externalEngineUnsupported }` (`:244-246`) → `attachExternalEngine`
 (`AgoraProvider.swift:186`): `enable_sei` failure throws immediately (`:199-202`),
 observer failure rolls back and throws (`:213-218`) → state `.connected`.
-`detach()` (`:258`) is `async` because it plays a transition;
+`detach()` (`:274`) is `async` because it plays a transition;
 `detachExternalEngine` only removes the observer and **never** leaves or destroys
 the host's engine (`:230-241`).
 
@@ -251,7 +286,7 @@ failure becomes an unexplained black screen.
 ## 8. Threading
 
 `AvatarPlayer`, `AnimationHandler`, `SEIPacketParser` and `AgoraProvider` are all
-`@MainActor` (`:46`, `:159`, `:22`, `:15`), as are the `AnimationTrackCallbacks`
+`@MainActor` (`:50`, `:163`, `:22`, `:15`), as are the `AnimationTrackCallbacks`
 and `RTCProvider` protocols. **Rendering is on the main thread.** There is no
 `actor` anywhere — concurrency is `@MainActor` + `Task` + one queue.
 
@@ -264,7 +299,7 @@ serial queue; and the MainActor is only touched when there is actually a payload
 (`:379`), avoiding ~25 empty Tasks per second on the UI thread.
 
 **All timers are `Task` + `Task.sleep`** — no `Timer`, no `CADisplayLink`:
-playback clock (`:1253`), stall watchdog (`:633`), playback stats (`:661`),
+playback clock (`:1296`), stall watchdog (`:659`), playback stats (`:688`),
 SEI stats (`SEIPacketParser.swift:251`), join timeout (`AgoraProvider.swift:109`).
 
 Agora delegate callbacks are `nonisolated` and hop back via

@@ -619,6 +619,9 @@ final class RTCTestViewModel: ObservableObject {
             lastError = "Stream stalled (no frames for 5s)"
         case .connectionStateChanged(let state):
             updateConnectionState(state)
+        case .conversationStateChanged:
+            // Render-level speaking/idle; not surfaced in this view.
+            break
         }
     }
 

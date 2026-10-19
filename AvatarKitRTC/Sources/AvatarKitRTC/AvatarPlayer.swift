@@ -26,6 +26,10 @@ public enum AvatarPlayerEvent: Sendable {
     case error(String)
     case stalled
     case connectionStateChanged(RTCConnectionState)
+    /// The avatar started or stopped speaking on screen. Fired only on an
+    /// actual change; the current value is also readable as
+    /// `AvatarPlayer.conversationState`.
+    case conversationStateChanged(RTCConversationState)
 }
 
 /// Unified avatar player for RTC-driven streaming.
@@ -55,6 +59,15 @@ public enum AvatarPlayerEvent: Sendable {
 
     private var _isConnected = false
     public var isConnected: Bool { _isConnected }
+
+    /// Whether the avatar is currently speaking on screen, at render level:
+    /// `.speaking` from the first rendered frame of a round (its opening
+    /// transition, or the first stream frame if that packet was lost) until
+    /// the closing transition has fully played out or playback was cut back
+    /// to idle (stall, bare idle packet, disconnect). `.idle` before any
+    /// round. Every change is also delivered as
+    /// `AvatarPlayerEvent.conversationStateChanged`.
+    public private(set) var conversationState: RTCConversationState = .idle
 
     /// Cumulative jitter-buffer / playback statistics for the current
     /// connection. Read this from tests (or app code that wants a live view)
@@ -158,6 +171,9 @@ public enum AvatarPlayerEvent: Sendable {
         handlerConfig.maxBufferDelayMs = options.maxBufferDelayMs
         handlerConfig.providerName = providerName
         handlerConfig.onStreamStalled = { [weak self] in self?.handleStreamStalled() }
+        handlerConfig.onConversationStateChanged = { [weak self] state in
+            self?.handleConversationStateChanged(state)
+        }
         self.animationHandler = AnimationHandler(renderer: adapter, config: handlerConfig)
 
         setupProviderEvents()
@@ -278,6 +294,10 @@ public enum AvatarPlayerEvent: Sendable {
             try? await Task.sleep(nanoseconds: Self.DISCONNECT_TRANSITION_FRAME_INTERVAL_NS)
         }
         avatarView.renderFrameSync(nil, startIdle: true)
+        // This runs after the handler has been disposed, so its callback will
+        // not report the return to idle; the player is the single source of
+        // truth for the state and closes the round here.
+        handleConversationStateChanged(.idle)
     }
 
     public func disconnect() async {
@@ -511,6 +531,15 @@ public enum AvatarPlayerEvent: Sendable {
             "session_elapsed": sessionStartTime > 0 ? Int(nowMs() - sessionStartTime) : 0,
         ])
         emit(.stalled)
+    }
+
+    /// Player-level truth for `conversationState`, fed by the handler's
+    /// render-path callback and by the host-initiated teardown. Emits iff the
+    /// state actually changed.
+    private func handleConversationStateChanged(_ state: RTCConversationState) {
+        guard state != conversationState else { return }
+        conversationState = state
+        emit(.conversationStateChanged(state))
     }
 
     private func emit(_ event: AvatarPlayerEvent) {

@@ -111,10 +111,23 @@ xcodebuild build -scheme AvatarKitRTC \
 > found` regardless of the state of this repo's own code. An iOS destination is
 > required.
 
-> `xcodebuild test` currently fails to launch: the test bundle cannot resolve
-> `@rpath/AgoraRtcKit.framework`. It only ever covered a single smoke case, and
-> **it does not reach the 63 integration cases** (see
-> [`test-cases.md`](test-cases.md) §1) — those run from the demo app on a device.
+> `xcodebuild test` builds, but the test bundle refuses to load as-is —
+> `Library not loaded: @rpath/AgoraRtcKit.framework … Trying to load an
+> unsigned library`: the binary frameworks copied next to the bundle are
+> unsigned. Sign them ad hoc, then run the already-built bundle:
+>
+> ```bash
+> DD=/tmp/avatarkit-rtc-dd
+> xcodebuild build-for-testing -scheme AvatarKitRTC \
+>   -destination 'platform=iOS Simulator,name=<a simulator you have>' -derivedDataPath $DD
+> find $DD/Build/Products/Debug-iphonesimulator -maxdepth 3 -name '*.framework' \
+>   -exec codesign --force --deep --sign - {} \;
+> xcodebuild test-without-building -scheme AvatarKitRTC \
+>   -destination 'platform=iOS Simulator,name=<a simulator you have>' -derivedDataPath $DD
+> ```
+>
+> This reaches the 10 unit cases only (see [`test-cases.md`](test-cases.md) §1)
+> — **never the 64 integration cases**, which run from the demo app on a device.
 
 **Manual verification on a device** (inside the demo app):
 

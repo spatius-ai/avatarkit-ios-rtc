@@ -9,6 +9,17 @@ public enum RTCConnectionState: String, Sendable {
     case failed
 }
 
+/// Whether the avatar is speaking on screen, as seen by the RTC player.
+///
+/// Render-level and edge-triggered: `.speaking` from the first rendered frame
+/// of a round until its closing transition has fully played out (or playback
+/// was cut back to idle). Unrelated to the main SDK's `ConversationState` —
+/// RTC drives the renderer directly, so that callback never fires in RTC mode.
+public enum RTCConversationState: String, Sendable {
+    case idle
+    case speaking
+}
+
 /// Stream statistics for monitoring and debugging.
 public struct RTCStreamStats: Sendable {
     public var framesPerSec: Double

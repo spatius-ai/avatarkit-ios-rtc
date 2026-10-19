@@ -10,18 +10,27 @@ Pods `AvatarKitRTC` + `AvatarKitAgoraBridge`, v1.1.0.
 
 | Layer | Where | Count |
 |-------|-------|------:|
-| SPM unit test | `AvatarKitRTC/Tests/AvatarKitRTCTests/` | **1 (smoke only)** |
-| Demo integration — MOCK | `Demo/RTCDemo/Integration/Mock/MockTestCases.swift` | **43** |
+| SPM unit test | `AvatarKitRTC/Tests/AvatarKitRTCTests/` | **10** |
+| Demo integration — MOCK | `Demo/RTCDemo/Integration/Mock/MockTestCases.swift` | **44** |
 | Demo integration — LIVE | `Demo/RTCDemo/Integration/TestCases.swift` | **20** |
 
-The unit target has exactly one case, `testTypesAreImportable()`
-(`AvatarKitRTCTests.swift:5`), whose body is `_ = RTCConnectionState.disconnected`.
-Its own comment (`:6-7`) says it plainly: *"Smoke test: ensure the module
-compiles and key public symbols are accessible. Real coverage lives in the demo
-app."* **`xcodebuild test` reaches only this one case**, never the 63 below.
+The unit target has the original smoke case `testTypesAreImportable()`
+(`AvatarKitRTCTests.swift:5`, body `_ = RTCConnectionState.disconnected`) plus
+`ConversationStateTests` (`ConversationStateTests.swift`, 9 cases). Those drive
+`AnimationHandler` directly against a fake `AvatarRendererAdapter` and pin the
+render-level conversation-state edge: `.speaking` exactly once on the first
+rendered frame (start transition, buffered stream, or direct path), `.idle`
+exactly once when the end transition has played out or `startIdle()` runs while
+speaking, nothing when already idle or at construction, and a silent reset on
+`dispose()` so the next round after a reconnect edges again. `AvatarPlayer` itself
+cannot be constructed there (`AvatarView` needs a loaded `Avatar`), so the
+player-level getter is covered by `mock.evt.conversation-state` below.
+**`xcodebuild test` reaches only these 10 cases**, never the 64 below — and the
+test bundle only loads after the built frameworks are ad-hoc signed, see
+[`release-process.md`](release-process.md) §4.
 
-> Android RTC has no test target at all; iOS has one that is equivalent to zero
-> behavioural coverage. Do not read it as "unit tested".
+> Android RTC has no test target at all; iOS's covers one state-machine edge.
+> Do not read it as "unit tested" beyond that.
 
 ## 2. How to run
 
@@ -69,12 +78,14 @@ UUIDs; the RTC layer does not participate in that scheme.
 
 | Suite | iOS | Android | Web |
 |-------|----:|--------:|----:|
-| Mock | **43** | **43** | 45 |
+| Mock | **44** | 43 | 45 |
 | Live | **20** | 17 | — |
 
 Verified by sorting both sides' ids and diffing:
 
-- **Mock: iOS ↔ Android is byte-identical across all 43.** ✅
+- **Mock: 43 ids are byte-identical between iOS and Android.** iOS adds
+  `mock.evt.conversation-state` for the conversation-state callback, which is
+  landing on all three SDKs in parallel — reuse the id on Android.
 - **Live: Android's 17 are a strict subset of iOS's 20.** The three extra are
  iOS-only, grouped under "iOS-Only" (`TestCases.swift:297-299`: *"Behavior that
  doesn't exist on web RTC SDK but is critical for iOS"*):
@@ -108,7 +119,7 @@ is permanently zero.
 Pass/fail is a runtime property; this document does not assert it, and there is
 no checked-in baseline report to cite.
 
-## 5. Mock suite (43)
+## 5. Mock suite (44)
 
 
 ### Mock: Idle (2 cases)
@@ -175,7 +186,7 @@ no checked-in baseline report to cite.
 | Stall fires once per silent window, not repeatedly | `mock.stall.fires-once-not-repeatedly` | 15000 | `MockTestCases.swift:452` |
 | Frames arriving after stall keep the session alive | `mock.stall.recover-after-stall` | 18000 | `MockTestCases.swift:463` |
 
-### Mock: Events (4 cases)
+### Mock: Events (5 cases)
 
 | Case | id | Timeout (ms) | Defined at |
 |------|----|--------------|-----------|
@@ -183,31 +194,32 @@ no checked-in baseline report to cite.
 | disconnect emits .disconnected | `mock.evt.disconnect-event` | 5000 | `MockTestCases.swift:497` |
 | Provider .error event reaches subscribers | `mock.evt.error-propagates` | 4000 | `MockTestCases.swift:508` |
 | connectionChanged events reach subscribers | `mock.evt.connection-state-changed` | 4000 | `MockTestCases.swift:518` |
+| conversationStateChanged: speaking once, idle once, getter tracks | `mock.evt.conversation-state` | 10000 | `MockTestCases.swift:532` |
 
 ### Mock: Player Guards (6 cases)
 
 | Case | id | Timeout (ms) | Defined at |
 |------|----|--------------|-----------|
-| connect() while already connected throws | `mock.guard.connect-when-connected` | 5000 | `MockTestCases.swift:537` |
-| publishAudio() while disconnected throws | `mock.guard.publish-when-disconnected` | 6000 | `MockTestCases.swift:551` |
-| publishExternalPCM() while disconnected throws | `mock.guard.publishExternal-when-disconnected` | 6000 | `MockTestCases.swift:565` |
-| unpublishAudio() while not publishing is a no-op | `mock.guard.unpublish-idempotent` | 4000 | `MockTestCases.swift:579` |
-| Double disconnect() is a no-op | `mock.guard.disconnect-idempotent` | 6000 | `MockTestCases.swift:587` |
-| reconnect() with no prior config throws | `mock.guard.reconnect-without-history` | 4000 | `MockTestCases.swift:596` |
+| connect() while already connected throws | `mock.guard.connect-when-connected` | 5000 | `MockTestCases.swift:567` |
+| publishAudio() while disconnected throws | `mock.guard.publish-when-disconnected` | 6000 | `MockTestCases.swift:581` |
+| publishExternalPCM() while disconnected throws | `mock.guard.publishExternal-when-disconnected` | 6000 | `MockTestCases.swift:595` |
+| unpublishAudio() while not publishing is a no-op | `mock.guard.unpublish-idempotent` | 4000 | `MockTestCases.swift:609` |
+| Double disconnect() is a no-op | `mock.guard.disconnect-idempotent` | 6000 | `MockTestCases.swift:617` |
+| reconnect() with no prior config throws | `mock.guard.reconnect-without-history` | 4000 | `MockTestCases.swift:626` |
 
 ### Mock: Provider Lifecycle (3 cases)
 
 | Case | id | Timeout (ms) | Defined at |
 |------|----|--------------|-----------|
-| Provider error during connect surfaces to caller | `mock.life.connect-throws-propagates` | 8000 | `MockTestCases.swift:618` |
-| Provider error during publishAudio surfaces | `mock.life.publish-throws-propagates` | 5000 | `MockTestCases.swift:633` |
-| Reconnect after disconnect resets accumulated state | `mock.life.connect-disconnect-reset` | 12000 | `MockTestCases.swift:646` |
+| Provider error during connect surfaces to caller | `mock.life.connect-throws-propagates` | 8000 | `MockTestCases.swift:648` |
+| Provider error during publishAudio surfaces | `mock.life.publish-throws-propagates` | 5000 | `MockTestCases.swift:663` |
+| Reconnect after disconnect resets accumulated state | `mock.life.connect-disconnect-reset` | 12000 | `MockTestCases.swift:676` |
 
 ### Mock: Stream Stats (1 cases)
 
 | Case | id | Timeout (ms) | Defined at |
 |------|----|--------------|-----------|
-| Injected stream stats don't break playback | `mock.stats.simple-injection` | 6000 | `MockTestCases.swift:670` |
+| Injected stream stats don't break playback | `mock.stats.simple-injection` | 6000 | `MockTestCases.swift:700` |
 
 ## 6. Live suite (20)
 
