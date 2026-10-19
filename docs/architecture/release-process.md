@@ -97,7 +97,7 @@ AgoraRtcEngine_iOS 4.5.2.
  — it covers #1 / #2 / #4; **#3 (the cross-reference inside the podspec) and #5 (the git tag) still need a manual check**
 3. Confirm `CHANGELOG.md` is filled in (including the host SDK version this release depends on)
 4. Confirm the target version is not already taken on trunk
-5. If the host SDK was bumped, confirm `Package.swift:17` and `AvatarKitRTC.podspec:47` are in sync
+5. If the host SDK was bumped, confirm `Package.swift:17` and `AvatarKitRTC.podspec:51` are in sync
 
 ## 4. Local verification
 
@@ -184,7 +184,7 @@ pod trunk push AvatarKitRTC.podspec # then the main pod
 > explicitly confirmed.
 
 > ⚠️ **The publish order cannot be reversed**: `AvatarKitRTC` depends on an
-> **exact version** of `AvatarKitAgoraBridge` (`podspec:44`). Publishing the main
+> **exact version** of `AvatarKitAgoraBridge` (`podspec:47`). Publishing the main
 > pod first fails because the dependency cannot be resolved. Both pods share the
 > same git tag, so their versions must be bumped together.
 

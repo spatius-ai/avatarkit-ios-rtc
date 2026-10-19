@@ -12,7 +12,7 @@ How this SDK works **right now**. Rewritten in place when the code changes.
 Aligning these files with code fact is a hard release gate
 (see the Documentation Alignment Gate section in this file).
 
-**All five files were verified against code on 2026-08-27 at v1.0.1.**
+**All five files were verified against code on 2026-08-27 at v1.0.1; version statements, the host SDK dependency and podspec / TestRunner line references were re-verified on 2026-10-19 at v1.1.0.**
 
 | File | Purpose |
 |------|---------|

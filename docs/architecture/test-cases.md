@@ -4,7 +4,7 @@ Layer: **current state** — rewritten in place whenever tests are added, remove
 or renamed. Verified against the test sources on every release
 (see the Documentation Alignment Gate section in this file).
 
-Pods `AvatarKitRTC` + `AvatarKitAgoraBridge`, v1.0.1.
+Pods `AvatarKitRTC` + `AvatarKitAgoraBridge`, v1.1.0.
 
 ## 1. Two layers
 
@@ -39,15 +39,15 @@ Default mode is **mock** (`:173`). Case selection is `switch mode` at `:196-200`
 > ⚠️ **"Mock (no network)" is only true of the RTC link.** The three credential
 > fields gate *both* modes — the check sits before the `switch` (`:186-200`), and
 > `TestRunner.run` still calls `AvatarSDK.initialize(appID:)` and
-> `AvatarManager.load(id:)` for real (`TestRunner.swift:54-73`). Mock needs a
+> `AvatarManager.load(id:)` for real (`TestRunner.swift:54-75`). Mock needs a
 > valid appID/avatarID and network to load the avatar; it just never talks to
 > Agora.
 
 **LIVE additionally needs**: a reachable backend at `<baseURL>/api/agora-token`
-(`TestRunner.swift:318-345`), the bundled `Demo/RTCDemo/Resources/test-audio.pcm`
+(`TestRunner.swift:320-347`), the bundled `Demo/RTCDemo/Resources/test-audio.pcm`
 (16 kHz/16-bit mono — **missing file degrades silently to empty `Data()`**,
 `IntegrationTestView.swift:248-254`), a real device with microphone permission,
-and patience: setup alone sleeps 5 s for egress (`TestRunner.swift:149-150`) and
+and patience: setup alone sleeps 5 s for egress (`TestRunner.swift:151-152`) and
 one case has a 90 s timeout.
 
 **Runner behaviour worth knowing** (`TestRunner.swift`): all cases share one
