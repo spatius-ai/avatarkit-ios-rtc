@@ -56,7 +56,9 @@ final class TestRunner {
         AvatarSDK.initialize(
             appID: appId,
             configuration: Configuration(
-                drivingServiceMode: .direct,
+                // AvatarPlayer asserts RTC mode, and only the first initialize() in a
+                // process takes effect — opening this screen first used to crash.
+                drivingServiceMode: .rtc,
                 logLevel: .warning
             )
         )
