@@ -67,8 +67,8 @@ which records the version in `gradle.properties`.
 
 | Distribution | Declaration | Location |
 |------|------|------|
-| SPM | `.package(url: …avatarkit-ios-release, exact: "1.3.4")` | `Package.swift:17` |
-| CocoaPods | `spec.dependency "SpatiusAvatarKit", "1.3.4"` | `AvatarKitRTC.podspec:51` |
+| SPM | `.package(url: …avatarkit-ios-release, exact: "1.3.6")` | `Package.swift:17` |
+| CocoaPods | `spec.dependency "SpatiusAvatarKit", "1.3.6"` | `AvatarKitRTC.podspec:51` |
 
 Both pin an **exact version**; the comment at `Package.swift:15-16` explains why:
 it keeps SPM and the podspec locked to the same host SDK version. Third-party
@@ -84,7 +84,7 @@ AgoraRtcEngine_iOS 4.5.2.
 >
 > The iOS `exact:` is a **real constraint the resolver enforces**: a wrong
 > version fails during dependency resolution. The price is that **if the host app
-> also depends on AvatarKit at any version other than 1.3.4, SPM fails to
+> also depends on AvatarKit at any version other than 1.3.6, SPM fails to
 > resolve outright — there is no room to negotiate**. Whenever the host SDK is
 > bumped, this repo must ship a matching release, or host apps cannot upgrade.
 >

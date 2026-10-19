@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Requires AvatarKit 1.3.6** (was 1.3.4), on both Swift Package Manager
+  (`avatarkit-ios-release` `exact: "1.3.6"`) and CocoaPods (`SpatiusAvatarKit 1.3.6`).
+  Apps that use the RTC adapter could not move past AvatarKit 1.3.4 until now; this
+  brings in every AvatarKit fix since then. No change to this package's own API, but
+  upgrading moves your app to AvatarKit 1.3.6, which has these breaking changes:
+  - `Configuration.audioFormat` is removed (AvatarKit 1.3.6): drop it from
+    `AvatarSDK.initialize(...)` and, if you set a format other than 16 kHz PCM, pass it
+    to `AvatarView(avatar:audioFormat:)` instead. `AvatarSDK.setAudioFormatForTesting()`
+    is removed with it.
+  - `AnimationType.mono` is renamed `AnimationType.fallback` (AvatarKit 1.3.6).
+  - `AvatarController.yield(_:end:)`, `yield(_:conversationID:)` and `volume`, deprecated
+    since AvatarKit 1.0.0, are removed (AvatarKit 1.3.5): use `yieldAudioData(_:end:)`,
+    `yieldFramesData(_:conversationID:)` and `setVolume(_:)` / `getVolume()`.
+
 ## [1.0.1] — 2026-08-31
 
 Internal telemetry only; no change to the public API or runtime behavior.

@@ -284,7 +284,6 @@ final class RTCTestViewModel: ObservableObject {
         AvatarSDK.initialize(
             appID: trimmedApp,
             configuration: Configuration(
-                audioFormat: AudioFormat(sampleRate: 16000),
                 drivingServiceMode: .rtc,
                 logLevel: .warning
             )

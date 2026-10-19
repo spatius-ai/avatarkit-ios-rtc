@@ -56,7 +56,6 @@ final class TestRunner {
         AvatarSDK.initialize(
             appID: appId,
             configuration: Configuration(
-                audioFormat: AudioFormat(sampleRate: 16000),
                 drivingServiceMode: .direct,
                 logLevel: .warning
             )
