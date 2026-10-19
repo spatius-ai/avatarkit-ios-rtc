@@ -50,5 +50,7 @@ Pod::Spec.new do |spec|
   # package. Its module_name is still AvatarKit, so imports are unaffected.
   spec.dependency "SpatiusAvatarKit", "1.3.6"
   spec.dependency "SwiftProtobuf", "1.30.0"
+  # Exact pin on purpose — see the comment on the Agora dependency in Package.swift
+  # (4.5.3 builds but delivers no encoded frames on a device).
   spec.dependency "AgoraRtcEngine_iOS", "4.5.2"
 end

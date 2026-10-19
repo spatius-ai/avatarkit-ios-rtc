@@ -21,6 +21,8 @@ Pod::Spec.new do |spec|
   spec.source_files        = "AvatarKitRTC/Sources/AvatarKitAgoraBridge/**/*.{h,mm}"
   spec.public_header_files  = "AvatarKitRTC/Sources/AvatarKitAgoraBridge/include/*.h"
   spec.requires_arc         = true
+  # Exact pin on purpose — see the comment on the Agora dependency in Package.swift
+  # (4.5.3 builds but delivers no encoded frames on a device).
   spec.dependency "AgoraRtcEngine_iOS", "4.5.2"
   spec.pod_target_xcconfig  = {
     "CLANG_CXX_LANGUAGE_STANDARD" => "c++17",
