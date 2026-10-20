@@ -476,6 +476,7 @@ fi
 # post
 # ---------------------------------------------------------------------------
 if [[ "$mode" == "post" ]]; then
+    tmp_root="${TMPDIR:-/tmp}"
     poll_minutes="${POLL_MINUTES:-30}"
     started=$SECONDS
     deadline=$((SECONDS + poll_minutes * 60))
@@ -536,7 +537,6 @@ if [[ "$mode" == "post" ]]; then
     # Expected pins are the ones in Package.swift at the tag (what SPM sees).
     tag_pkg="$(git show "v$version:Package.swift" 2>/dev/null || cat Package.swift)"
     expected_main="$(sed -nE 's/.*avatarkit-ios-release\.git",[[:space:]]*exact:[[:space:]]*"([^"]+)".*/\1/p' <<<"$tag_pkg" | head -1)"
-    tmp_root="${TMPDIR:-/tmp}"
     spm_dir="$(mktemp -d "${tmp_root%/}/avatarkit-rtc-spm.XXXXXX")"
     mkdir -p "$spm_dir/Sources/Probe"
     cat >"$spm_dir/Sources/Probe/Probe.swift" <<'SWIFT'
