@@ -1,6 +1,6 @@
 Pod::Spec.new do |spec|
   spec.name         = "AvatarKitAgoraBridge"
-  spec.version      = "1.2.0"
+  spec.version      = "1.2.0-agora-special.4.5.2.191.BASIC"
   spec.summary      = "ObjC++ bridge exposing Agora's encoded-frame observer to Swift"
   spec.description  = <<-DESC
                       Wraps Agora's C++ IVideoEncodedFrameObserver into a Swift-callable
@@ -23,7 +23,7 @@ Pod::Spec.new do |spec|
   spec.requires_arc         = true
   # Exact pin on purpose — see the comment on the Agora dependency in Package.swift
   # (4.5.3 builds but delivers no encoded frames on a device).
-  spec.dependency "AgoraRtcEngine_iOS", "4.5.2"
+  spec.dependency "AgoraRtcEngine_Special_iOS", "4.5.2.191.BASIC"
   spec.pod_target_xcconfig  = {
     "CLANG_CXX_LANGUAGE_STANDARD" => "c++17",
     "CLANG_CXX_LIBRARY"           => "libc++"

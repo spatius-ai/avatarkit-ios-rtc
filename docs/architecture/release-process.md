@@ -163,8 +163,10 @@ Checks, each printed as `PASS|FAIL <check>: <value>`:
   and the tag is on `origin` with the same commit;
 - offline xcframeworks (§6.2), **only if `dist/` has been built** (SKIP
   otherwise): each has exactly an `ios-arm64` device slice and an `ios-arm64`
-  simulator slice, and every slice's framework carries this version (a stale
-  `dist/` fails here).
+  simulator slice and every slice's framework carries the version (numeric part
+  only — `CFBundleShortVersionString` cannot hold an `-agora-special` suffix);
+  the zip is named with the full version and `DEPENDENCIES.txt` names the full
+  version and the podspecs' Agora pod (a stale `dist/` fails here).
 
 `pod lib lint` / `pod spec lint` are not used: they are slow, and Agora's headers
 emit `-Wdocumentation` warnings that fail lint without `--allow-warnings`.

@@ -1,5 +1,18 @@
 # AvatarKitRTC iOS SDK
 
+> **Agora special build — `1.2.0-agora-special.4.5.2.191.BASIC`.** This branch is AvatarKitRTC 1.2.0 built
+> against Agora's customer SDK **`AgoraRtcEngine_Special_iOS 4.5.2.191.BASIC`**
+> instead of the public `AgoraRtcEngine_iOS 4.5.2`. Code is identical to
+> [`v1.2.0`](https://github.com/spatius-ai/avatarkit-ios-rtc/tree/v1.2.0); only
+> the Agora dependency differs.
+>
+> - **CocoaPods only:** `pod 'AvatarKitRTC', '1.2.0-agora-special.4.5.2.191.BASIC'` (pulls
+>   `AgoraRtcEngine_Special_iOS 4.5.2.191.BASIC`). Do not also add
+>   `AgoraRtcEngine_iOS` — two Agora SDKs in one app conflict.
+> - **Offline:** `AvatarKitRTC-1.2.0-agora-special.4.5.2.191.BASIC-xcframeworks.zip` on this tag's GitHub Release.
+> - **Not SPM:** Agora ships no special SDK over SPM. The SPM instructions below
+>   (and `Package.swift`) are the public build's.
+
 RTC adapter for [AvatarKit](https://github.com/spatius-ai/avatarkit-ios-release) on iOS — brings an agent's animation stream from an RTC session into AvatarKit's rendering pipeline. Currently supports Agora.
 
 ## Installation

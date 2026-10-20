@@ -431,7 +431,10 @@ PY
             skip "xcframework $module" "$xcf not built (only needed for offline delivery, §6.2)"
             continue
         fi
-        run_section "$module" "$version" "$xcf" <<'PY'
+        # CFBundleShortVersionString is numeric-only, so a framework carries the
+        # base version (an -agora-special suffix is dropped by CocoaPods); the
+        # full version is checked on the zip and DEPENDENCIES.txt below.
+        run_section "$module" "$base_version" "$xcf" <<'PY'
 import json, subprocess, sys, pathlib
 module, version, xcf = sys.argv[1:4]
 def plist(path):
@@ -451,6 +454,21 @@ for lib in libs:
           + ("" if ok else f" (expected {version} — stale dist/? rebuild)"))
 PY
     done
+    if [[ -d dist/AvatarKitRTC.xcframework ]]; then
+        zip_path="dist/AvatarKitRTC-$version-xcframeworks.zip"
+        if [[ -f "$zip_path" ]]; then
+            pass "xcframework zip" "$zip_path ($(du -h "$zip_path" | cut -f1 | tr -d ' '))"
+        else
+            fail "xcframework zip" "$zip_path missing — rerun ./build-xcframework.sh"
+        fi
+        deps_head="$(head -1 dist/DEPENDENCIES.txt 2>/dev/null || true)"
+        deps_agora="$(grep -E '^  - Agora: ' dist/DEPENDENCIES.txt 2>/dev/null | sed 's/^  - Agora: //; s/ —.*//' || true)"
+        if [[ "$deps_head" == "AvatarKitRTC $version "* && "$deps_agora" == "$podspec_agora_pod $podspec_agora_version" ]]; then
+            pass "xcframework DEPENDENCIES.txt" "$version; Agora $deps_agora"
+        else
+            fail "xcframework DEPENDENCIES.txt" "'${deps_head:-missing}' / Agora '${deps_agora:-?}' (expected $version / $podspec_agora_pod $podspec_agora_version — stale dist/?)"
+        fi
+    fi
     echo
 fi
 

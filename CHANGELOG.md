@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.0-agora-special.4.5.2.191.BASIC] — 2026-10-20
+
+Agora special build of 1.2.0: identical code, depends on
+`AgoraRtcEngine_Special_iOS 4.5.2.191.BASIC` instead of `AgoraRtcEngine_iOS 4.5.2`.
+CocoaPods and offline xcframeworks only. See the notice in `README.md`.
+
 ## [1.2.0] — 2026-10-20
 
 ### Added

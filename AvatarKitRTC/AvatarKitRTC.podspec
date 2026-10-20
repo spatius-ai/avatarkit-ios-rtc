@@ -1,6 +1,6 @@
 Pod::Spec.new do |spec|
   spec.name         = "AvatarKitRTC"
-  spec.version      = "1.2.0"
+  spec.version      = "1.2.0-agora-special.4.5.2.191.BASIC"
   spec.summary      = "RTC adapter for AvatarKit"
   spec.description  = <<-DESC
                       AvatarKitRTC bridges audio/animation tracks from RTC providers
@@ -44,7 +44,7 @@ Pod::Spec.new do |spec|
   # AvatarKitAgoraBridge is a separate pod (not a subspec) so it compiles as its
   # own Clang module — the Swift sources do `import AvatarKitAgoraBridge`, which
   # only resolves against a standalone module, matching the SPM target layout.
-  spec.dependency "AvatarKitAgoraBridge", "1.2.0"
+  spec.dependency "AvatarKitAgoraBridge", "1.2.0-agora-special.4.5.2.191.BASIC"
   # The host SDK is published to CocoaPods as SpatiusAvatarKit — `AvatarKit` was
   # already taken by someone else, and depending on that name pulls an unrelated
   # package. Its module_name is still AvatarKit, so imports are unaffected.
@@ -52,5 +52,5 @@ Pod::Spec.new do |spec|
   spec.dependency "SwiftProtobuf", "1.30.0"
   # Exact pin on purpose — see the comment on the Agora dependency in Package.swift
   # (4.5.3 builds but delivers no encoded frames on a device).
-  spec.dependency "AgoraRtcEngine_iOS", "4.5.2"
+  spec.dependency "AgoraRtcEngine_Special_iOS", "4.5.2.191.BASIC"
 end
