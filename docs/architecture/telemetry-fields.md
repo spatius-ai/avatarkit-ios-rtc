@@ -3,7 +3,7 @@
 Layer: **current state** — describes what `AvatarKitRTC` **actually emits at
 HEAD** (v1.1.0). Rewritten in place whenever an event or field changes;
 re-verified against the telemetry call sites on every release
-(see the Documentation Alignment Gate section in this file).
+([`release-process.md`](release-process.md) §5).
 
 (Maintainers keep a separate cross-platform event catalog at `knowledge/telemetry-events.md`, which is not distributed with this repo.) — That catalog has no `rtc_*` entries yet.
 
@@ -53,8 +53,8 @@ synchronously), which is why it needs a ContentProvider.
 > `1.0.0-beta.9`, meaning every record reported by v1.0.0 carried a version number that was never released**.
 > Keep this in mind when analyzing data from that version — the already-published v1.0.0 artifact cannot be retroactively corrected.
 >
-> `scripts/check_version_consistency.sh` now guards against this (comparing the constant against both podspecs and
-> failing on any mismatch), and is wired into the release process.
+> `scripts/check-release.sh` now guards against this (comparing the constant against both podspecs and every other
+> version location, failing on any mismatch), and is wired into the release process.
 > → [`release-process.md`](release-process.md) §2
 
 **Resource under an RTC integration**: `service.name = avatarkit`, `sdk.package = spatius-ios-rtc`,
@@ -331,7 +331,7 @@ same as android, so a cross-platform dashboard must not stack it directly agains
 
 8. **`TelemetryIdentity.sdkVersion` is the only hand-written version constant across the three platforms** (§0) — SPM has no build-time
  injection. It has drifted twice, and **the existing v1.0.0 data carries the wrong version number with no way to correct it retroactively**; HEAD is fixed,
- and `scripts/check_version_consistency.sh` prevents a recurrence
+ and `scripts/check-release.sh` prevents a recurrence
 9. **`emitPlaybackTrace` has no exception protection** — android wraps it in a try/catch, iOS runs unguarded
 
 ### Where iOS is better than the other two platforms (3 items)

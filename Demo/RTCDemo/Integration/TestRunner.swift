@@ -26,7 +26,7 @@ final class TestRunner {
     private var results: [TestResult] = []
 
     private let cases: [TestCase]
-    private let mode: RunnerMode
+    let mode: RunnerMode
     private let onProgress: OnProgress?
     private let onResult: OnResult?
 
@@ -266,9 +266,16 @@ final class TestRunner {
 
     // MARK: - Reports
 
-    static func generateReport(results: [TestResult]) -> String {
+    /// AvatarKitRTC's version for the report header. The library's own constant
+    /// (`TelemetryIdentity.sdkVersion`) is internal and SPM has no build-time
+    /// substitution, so the demo mirrors it here; `scripts/check-release.sh`
+    /// fails when the two disagree.
+    static let rtcSDKVersion = "1.2.0"
+
+    /// Report text — same layout on web, Android and iOS (see
+    /// `docs/architecture/test-cases.md` §2).
+    static func generateReport(mode: RunnerMode, results: [TestResult]) -> String {
         let now = ISO8601DateFormatter().string(from: Date())
-        let device = UIDevice.current.name
         let osVersion = UIDevice.current.systemVersion
 
         let passed = results.filter { $0.status == .pass }.count
@@ -277,9 +284,12 @@ final class TestRunner {
         let total = results.count
 
         var report = ""
-        report += "AvatarKitRTC iOS Integration Test Report\n"
+        report += "AvatarKitRTC Integration Report — \(mode == .mock ? "MOCK" : "LIVE")\n"
+        report += "Platform: iOS\n"
+        report += "RTC SDK: \(rtcSDKVersion)\n"
+        report += "Main SDK: \(AvatarSDK.version)\n"
         report += "Date: \(now)\n"
-        report += "Device: \(device)\n"
+        report += "Device: \(deviceDescription())\n"
         report += "OS: iOS \(osVersion)\n"
         report += "\n"
 
@@ -291,7 +301,7 @@ final class TestRunner {
             }
             let tag = "[\(r.status.rawValue)]"
             let time = String(format: "(%.1fs)", Double(r.durationMs) / 1000.0)
-            report += "\(tag) \(r.index). \(r.name) \(time)\n"
+            report += "\(tag) \(r.id) — \(r.name) \(time)\n"
             if let error = r.error {
                 report += "  \(error)\n"
             }
@@ -306,10 +316,26 @@ final class TestRunner {
         if skipped > 0 { report += ", \(skipped) skipped" }
         report += "\n"
         if failed > 0 {
-            let failedNames = results.filter { $0.status == .fail }.map { "#\($0.index)" }
-            report += "Failed: \(failedNames.joined(separator: ", "))\n"
+            let failedIds = results.filter { $0.status == .fail }.map(\.id)
+            report += "Failed: \(failedIds.joined(separator: ", "))\n"
         }
         return report
+    }
+
+    /// `UIDevice.name` is just "iPhone" since iOS 16, so add the hardware model
+    /// identifier (e.g. "iPhone (iPhone16,1)"); on the simulator, the simulated one.
+    private static func deviceDescription() -> String {
+        let machine: String
+        if let simulated = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] {
+            machine = "Simulator \(simulated)"
+        } else {
+            var info = utsname()
+            uname(&info)
+            machine = withUnsafeBytes(of: &info.machine) { raw in
+                String(decoding: raw.prefix(while: { $0 != 0 }), as: UTF8.self)
+            }
+        }
+        return "\(UIDevice.current.model) (\(machine))"
     }
 }
 

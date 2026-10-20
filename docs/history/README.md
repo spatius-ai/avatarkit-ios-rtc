@@ -21,7 +21,7 @@ They are kept because they still carry useful background. Read them as history.
 - **Frozen.** Nothing new is added here. Any new document goes to
  `architecture/` (current state) or `decisions/` (a recorded decision).
 - Not covered by the release-time docs alignment gate
- (see the Documentation Alignment Gate section in this file).
+ (see [`../architecture/release-process.md`](../architecture/release-process.md) §5).
 - If a file here turns out to still describe current behavior, promote its
  content into the matching `architecture/` file rather than citing it from here.
 

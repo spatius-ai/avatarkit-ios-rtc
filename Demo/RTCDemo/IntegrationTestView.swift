@@ -235,7 +235,7 @@ final class IntegrationTestViewModel: ObservableObject {
             let failed = finalResults.filter { $0.status == .fail }.count
             let total = finalResults.count
             self.summary = "\(passed)/\(total) passed" + (failed > 0 ? ", \(failed) failed" : "")
-            self.reportText = TestRunner.generateReport(results: finalResults)
+            self.reportText = TestRunner.generateReport(mode: runner.mode, results: finalResults)
             self.isRunning = false
             self.runner = nil
         }

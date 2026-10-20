@@ -18,7 +18,7 @@ Full file listing → [`architecture/docs-map.md`](architecture/docs-map.md)
  the same commit when current behaviour moves
 
 - **Every release** re-verifies all of `architecture/` against the code being
- released — a hard gate → see the docs alignment gate section in this file
+ released — a hard gate → [`architecture/release-process.md`](architecture/release-process.md) §5
 - Layout and per-file contracts → `docs/decisions/README.md`
 - Anything that does not fit one of the five `architecture/` files goes to
  `decisions/` or `history/` — never a new `architecture/` filename, which would
@@ -29,5 +29,10 @@ source of truth for all seven SDK repos. Do not fork them here.)
 
 ## Cross-SDK docs
 
-Release gates, report schemas and the shared release framework live in
-`sdk-release-manager/` and `knowledge/` in the umbrella repo, not in this repo.
+The release process for this repo is complete in
+[`architecture/release-process.md`](architecture/release-process.md) (ADR-0002 in
+`web-sdk`: each repo carries its own). The three RTC repos share its section
+structure and the MOCK case catalog in
+[`architecture/test-cases.md`](architecture/test-cases.md), kept byte-identical by
+`scripts/check-docs.sh`. Cross-SDK principles live in `knowledge/` in the umbrella
+repo.

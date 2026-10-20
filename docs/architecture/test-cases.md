@@ -2,299 +2,239 @@
 
 Layer: **current state** — rewritten in place whenever tests are added, removed
 or renamed. Verified against the test sources on every release
-(see the Documentation Alignment Gate section in this file).
+(see [`release-process.md`](release-process.md) §5, documentation alignment gate).
 
-Pods `AvatarKitRTC` + `AvatarKitAgoraBridge`, v1.1.0.
+Case counts are deliberately not written anywhere in this file: hand-written
+counts were the main source of drift. The catalog in §2 is the list, and
+`scripts/check-docs.sh` checks it against the code.
 
-## 1. Two layers
+## 1. Unit tests
 
-| Layer | Where | Count |
-|-------|-------|------:|
-| SPM unit test | `AvatarKitRTC/Tests/AvatarKitRTCTests/` | **10** |
-| Demo integration — MOCK | `Demo/RTCDemo/Integration/Mock/MockTestCases.swift` | **44** |
-| Demo integration — LIVE | `Demo/RTCDemo/Integration/TestCases.swift` | **20** |
+| | |
+|---|---|
+| Command | `scripts/run-unit-tests.sh` — prints `executed=<n> failed=<n>`; that output is authoritative |
+| Files | `AvatarKitRTC/Tests/AvatarKitRTCTests/AvatarKitRTCTests.swift`, `ConversationStateTests.swift` |
+| Framework | XCTest, SPM test target `AvatarKitRTCTests` (`Package.swift`) |
 
-The unit target has the original smoke case `testTypesAreImportable()`
-(`AvatarKitRTCTests.swift:5`, body `_ = RTCConnectionState.disconnected`) plus
-`ConversationStateTests` (`ConversationStateTests.swift`, 9 cases). Those drive
-`AnimationHandler` directly against a fake `AvatarRendererAdapter` and pin the
-render-level conversation-state edge: `.speaking` exactly once on the first
-rendered frame (start transition, buffered stream, or direct path), `.idle`
-exactly once when the end transition has played out or `startIdle()` runs while
-speaking, nothing when already idle or at construction, and a silent reset on
-`dispose()` so the next round after a reconnect edges again. `AvatarPlayer` itself
-cannot be constructed there (`AvatarView` needs a loaded `Avatar`), so the
-player-level getter is covered by `mock.evt.conversation-state` below.
-**`xcodebuild test` reaches only these 10 cases**, never the 64 below — and the
-test bundle only loads after the built frameworks are ad-hoc signed, see
-[`release-process.md`](release-process.md) §4.
+Coverage:
 
-> Android RTC has no test target at all; iOS's covers one state-machine edge.
-> Do not read it as "unit tested" beyond that.
+- `AvatarKitRTCTests.testTypesAreImportable()` — smoke check that the public
+  module links (`_ = RTCConnectionState.disconnected`).
+- `ConversationStateTests` drives `AnimationHandler` directly against a fake
+  `AvatarRendererAdapter` and pins the render-level conversation-state edge:
+  `.speaking` exactly once on the first rendered frame (start transition,
+  buffered stream, or direct path), `.idle` exactly once when the end transition
+  has played out or `startIdle()` runs while speaking, nothing when already idle
+  or at construction, and a silent reset on `dispose()` so the next round after a
+  reconnect edges again. `AvatarPlayer` itself cannot be constructed there
+  (`AvatarView` needs a loaded `Avatar`), so the player-level getter is covered by
+  `mock.evt.conversation-state` in §2.
 
-## 2. How to run
+Why a script and not `xcodebuild test`: the test bundle only loads after the
+Agora / AvatarKit binary frameworks copied next to it are ad-hoc signed
+(`Library not loaded: @rpath/AgoraRtcKit.framework … Trying to load an unsigned
+library`), and `swift test` targets macOS, which Agora does not ship. The script
+does build-for-testing → `codesign --sign -` → test-without-building on an
+automatically picked iPhone simulator (`SIMULATOR_ID=<udid>` overrides).
 
-Both integration suites are **manual, inside the demo app**:
+The unit target never reaches the integration suites below — those run inside
+the demo app.
+
+## 2. MOCK integration suite (release gate)
+
+**Entry point** (demo app `Demo/RTCDemo`, scheme `RTCDemo`):
 
 ```
-RTCDemoApp → "Integration Test" RTCDemoApp.swift:27-31
- → segmented picker: Mock (no network) / Live (Agora) IntegrationTestView.swift:82-88
- → fill Backend base URL / App ID / Avatar ID :90-108
- → Run → "Copy Report" (plain text to clipboard) :49-53
+RTCDemoApp → "Integration Test"                      RTCDemoApp.swift:27-31
+  → segmented picker: Mock (no network) / Live (Agora)  IntegrationTestView.swift:82-88
+  → fill Backend base URL / App ID / Avatar ID          IntegrationTestView.swift:90-108
+  → Run Mock → "Copy Report"                            IntegrationTestView.swift:36-53
 ```
 
-Default mode is **mock** (`:173`). Case selection is `switch mode` at `:196-200`.
+Default mode is **Mock** (`IntegrationTestView.swift:173`); `switch mode` at
+`IntegrationTestView.swift:196-200` picks `MockTestCases.all` or `TestCases.all`.
 
-> ⚠️ **"Mock (no network)" is only true of the RTC link.** The three credential
-> fields gate *both* modes — the check sits before the `switch` (`:186-200`), and
-> `TestRunner.run` still calls `AvatarSDK.initialize(appID:)` and
-> `AvatarManager.load(id:)` for real (`TestRunner.swift:54-75`). Mock needs a
-> valid appID/avatarID and network to load the avatar; it just never talks to
-> Agora.
+**Prerequisites.** "Mock (no network)" is only true of the RTC link. The three
+fields gate both modes (`IntegrationTestView.swift:184-189`), and
+`TestRunner.run` still calls `AvatarSDK.initialize(appID:)` and
+`AvatarManager.load(id:)` for real (`TestRunner.swift:56-81`). MOCK therefore needs
+a valid App ID / Avatar ID and network to load the avatar; it never talks to
+Agora (`MockRTCProvider` injects every packet). The Backend base URL is not called
+in MOCK mode but must be non-empty. Runs on a device or an arm64 simulator.
 
-**LIVE additionally needs**: a reachable backend at `<baseURL>/api/agora-token`
-(`TestRunner.swift:320-347`), the bundled `Demo/RTCDemo/Resources/test-audio.pcm`
-(16 kHz/16-bit mono — **missing file degrades silently to empty `Data()`**,
+**Runner behaviour** (`TestRunner.swift`): all cases share one `AvatarPlayer`
+and run serially with a fixed 1.5 s gap (`TestRunner.swift:169-174`); a case that
+leaves the connection down triggers `reconnect()` + 3 s sleep before the next
+(`TestRunner.swift:207-216`); a setup failure (avatar load, first token, first
+connect) yields a single synthetic `setup` FAIL and no real case runs.
+`TestStatus.skip` exists (`TestTypes.swift:18`) but nothing assigns it.
+
+**Report.** "Copy Report" puts plain text on the clipboard
+(`TestRunner.generateReport`, `TestRunner.swift:277`). The layout is identical on
+web, Android and iOS:
+
+```
+AvatarKitRTC Integration Report — MOCK
+Platform: iOS
+RTC SDK: <AvatarKitRTC version>
+Main SDK: <AvatarSDK.version at runtime>
+Date: <ISO-8601 UTC>
+Device: <model (hardware identifier)>
+OS: iOS <version>
+
+--- <group> ---
+[PASS] mock.idle.fresh — Initial state — no frames, no stall (0.1s)
+[FAIL] mock.jb.gap — Sequence gap — buffer skips ahead (2.0s)
+  <error text>
+  logs: <only on failure>
+...
+
+Result: <passed>/<total> passed[, <n> failed][, <n> skipped]
+Failed: <failed case ids, comma-separated>   ← only when something failed
+```
+
+`RTC SDK` comes from `TestRunner.rtcSDKVersion` (`TestRunner.swift:273`), a
+mirror of the library's internal `TelemetryIdentity.sdkVersion` — the library
+exposes no public version constant, and SPM cannot inject one.
+`scripts/check-release.sh` fails when the two differ. `Main SDK` is the public
+`AvatarSDK.version`.
+
+**Gate:** every MOCK case must PASS. The `Result` line and the device go into the
+release execution summary (`release-process.md` §6.1).
+
+### Catalog
+
+Shared by the three RTC repos and **byte-identical** in each
+(`scripts/check-docs.sh` compares them when the sibling repos are checked out).
+Ids, groups and order are authoritative; the ✅ ids in the `ios` column must equal
+`MockTestCases.all` (`Demo/RTCDemo/Integration/Mock/MockTestCases.swift`) in the
+same order. The catalog is changed for all three repos at once, never here alone.
+
+<!-- mock-catalog:begin -->
+| # | id | group | scenario | web | android | ios |
+|---|----|-------|----------|-----|---------|-----|
+| 1 | `mock.idle.fresh` | Mock: Idle | Initial state — no frames, no stall | ✅ | ✅ | ✅ |
+| 2 | `mock.idle.repeated-idempotent` | Mock: Idle | Many idle packets in a row — idempotent | ✅ | ✅ | ✅ |
+| 3 | `mock.seq.no-transition` | Mock: Speaking | Animation without leading transition starts a session | ✅ | ✅ | ✅ |
+| 4 | `mock.seq.with-transition` | Mock: Speaking | transition-start + frames + transition-end | ✅ | ✅ | ✅ |
+| 5 | `mock.seq.long-session` | Mock: Speaking | Long session — 50 sequential frames | ✅ | ✅ | ✅ |
+| 6 | `mock.seq.frameSeq-nil-direct-path` | Mock: Speaking | Frames with seq=nil bypass jitter buffer | ✅ | ✅ | ✅ |
+| 7 | `mock.trans.start-then-start` | Mock: Transitions | Repeated transition-start packets are idempotent | ✅ | ✅ | ✅ |
+| 8 | `mock.trans.end-without-session` | Mock: Transitions | transition-end without active session — ignored | ✅ | ✅ | ✅ |
+| 9 | `mock.trans.end-then-end` | Mock: Transitions | Repeated transition-end packets are idempotent | ✅ | ✅ | ✅ |
+| 10 | `mock.trans.late-start-during-playback` | Mock: Transitions | transition-start arriving mid-playback is dropped | ✅ | ✅ | ✅ |
+| 11 | `mock.trans.start-only-no-frames` | Mock: Transitions | transition-start with no follow-up frames — no crash | ✅ | ✅ | ✅ |
+| 12 | `mock.bound.anim-end-then-idle` | Mock: Boundaries | Session end with isEnd=true → idle marker | ✅ | ✅ | ✅ |
+| 13 | `mock.bound.back-to-back` | Mock: Boundaries | Two back-to-back sessions both accumulate | ✅ | ✅ | ✅ |
+| 14 | `mock.bound.idle-skips-transition-end` | Mock: Boundaries | Hard idle without transition-end is accepted | ✅ | ✅ | ✅ |
+| 15 | `mock.bound.duplicate-isStart` | Mock: Boundaries | Duplicate isStart=true mid-session is ignored | ✅ | ✅ | ✅ |
+| 16 | `mock.jb.ordering-in-order` | Mock: Jitter Buffer | Perfectly in-order frames render in order | ✅ | ✅ | ✅ |
+| 17 | `mock.jb.out-of-order` | Mock: Jitter Buffer | Out-of-order frames are reordered by the buffer | ✅ | ✅ | ✅ |
+| 18 | `mock.jb.duplicate-seq` | Mock: Jitter Buffer | Duplicate seq does not render twice | ✅ | ✅ | ✅ |
+| 19 | `mock.jb.gap` | Mock: Jitter Buffer | Sequence gap — buffer skips ahead | ✅ | ✅ | ✅ |
+| 20 | `mock.jb.regression-old-seq` | Mock: Jitter Buffer | Older seq after newer is dropped | ✅ | ✅ | ✅ |
+| 21 | `mock.jb.tiny-burst` | Mock: Jitter Buffer | Two frames is enough to enter draining | ✅ | ✅ | ✅ |
+| 22 | `mock.jb.starve-then-resume` | Mock: Jitter Buffer | Buffer starves between frames then resumes | ✅ | ✅ | ✅ |
+| 23 | `mock.meta.isRecovered` | Mock: Metadata | isRecovered=true bumps recovered counter | ✅ | ✅ | ✅ |
+| 24 | `mock.meta.isEnd-without-isStart` | Mock: Metadata | isEnd=true on first frame is tolerated | ✅ | ✅ | ✅ |
+| 25 | `mock.meta.isIdle-flag` | Mock: Metadata | Frame metadata isIdle=true is no-op for stats | ✅ | ✅ | ✅ |
+| 26 | `mock.stall.5s-fires` | Mock: Stall | 5s without frames in a session fires .stalled | ✅ | ✅ | ✅ |
+| 27 | `mock.stall.continuous-no-fire` | Mock: Stall | Frame every second — no stall | ✅ | ✅ | ✅ |
+| 28 | `mock.stall.fires-once-not-repeatedly` | Mock: Stall | Stall fires once per silent window, not repeatedly | ✅ | ✅ | ✅ |
+| 29 | `mock.stall.recover-after-stall` | Mock: Stall | Frames arriving after stall keep the session alive | ✅ | ✅ | ✅ |
+| 30 | `mock.evt.connect-events` | Mock: Events | connect sequence emits connecting → connected | ✅ | ✅ | ✅ |
+| 31 | `mock.evt.disconnect-event` | Mock: Events | disconnect emits .disconnected | ✅ | ✅ | ✅ |
+| 32 | `mock.evt.error-propagates` | Mock: Events | Provider .error event reaches subscribers | ✅ | ✅ | ✅ |
+| 33 | `mock.evt.connection-state-changed` | Mock: Events | connectionChanged events reach subscribers | ✅ | ✅ | ✅ |
+| 34 | `mock.evt.conversation-state` | Mock: Events | conversationStateChanged: speaking once, idle once, getter tracks | ✅ | ✅ | ✅ |
+| 35 | `mock.guard.connect-when-connected` | Mock: Player Guards | connect() while already connected throws | ✅ | ✅ | ✅ |
+| 36 | `mock.guard.publish-when-disconnected` | Mock: Player Guards | publishAudio() while disconnected throws | ✅ | ✅ | ✅ |
+| 37 | `mock.guard.publishExternal-when-disconnected` | Mock: Player Guards | publishExternalPCM() while disconnected throws | n/a¹ | ✅ | ✅ |
+| 38 | `mock.guard.unpublish-idempotent` | Mock: Player Guards | unpublishAudio() while not publishing is a no-op | ✅ | ✅ | ✅ |
+| 39 | `mock.guard.disconnect-idempotent` | Mock: Player Guards | Double disconnect() is a no-op | ✅ | ✅ | ✅ |
+| 40 | `mock.guard.reconnect-without-history` | Mock: Player Guards | reconnect() with no prior config throws | ✅ | ✅ | ✅ |
+| 41 | `mock.life.connect-throws-propagates` | Mock: Provider Lifecycle | Provider error during connect surfaces to caller | ✅ | ✅ | ✅ |
+| 42 | `mock.life.publish-throws-propagates` | Mock: Provider Lifecycle | Provider error during publishAudio surfaces | ✅ | ✅ | ✅ |
+| 43 | `mock.life.connect-disconnect-reset` | Mock: Provider Lifecycle | Reconnect after disconnect resets accumulated state | ✅ | ✅ | ✅ |
+| 44 | `mock.stats.simple-injection` | Mock: Stream Stats | Injected stream stats don't break playback | ✅ | ✅ | ✅ |
+
+¹ web `AvatarPlayer` has no `publishExternalPCM()`.
+<!-- mock-catalog:end -->
+
+## 3. LIVE suite (optional, not a release gate)
+
+`Demo/RTCDemo/Integration/TestCases.swift`, picker "Live (Agora)". Talks to a
+real Agora channel, so results depend on the network and the backend; it is kept
+for smoke coverage and **does not gate a release**. Run it when a change touches
+the Agora path; a LIVE failure is investigated, not a blocker by itself.
+
+**Prerequisites** beyond MOCK's: a reachable backend serving
+`<baseURL>/api/agora-token` (`DemoBackend.fetchToken` in `TestRunner.swift`),
+the bundled `Demo/RTCDemo/Resources/test-audio.pcm` (16 kHz / 16-bit mono — a
+missing file silently degrades to empty `Data()`,
 `IntegrationTestView.swift:248-254`), a real device with microphone permission,
-and patience: setup alone sleeps 5 s for egress (`TestRunner.swift:151-152`) and
-one case has a 90 s timeout.
+and time: setup alone sleeps 5 s for egress (`TestRunner.swift:152-153`) and one
+case has a 90 s timeout. The report is the same format with `— LIVE` in the title.
 
-**Runner behaviour worth knowing** (`TestRunner.swift`): all cases share one
-`AvatarPlayer` and run serially (`:9-11`, `:167`), with a fixed 1.5 s gap
-(`:171-173`); a case that leaves the connection down triggers an automatic
-`reconnect()` + 3 s sleep before the next (`:205-213`); and **a setup failure
-short-circuits the whole run** — avatar load (`:70-78`), first token (`:100-109`)
-or first connect (`:155-163`) failing yields a single synthetic `setup` FAIL and
-returns, with no real case executed.
+| id | group | case |
+|----|-------|------|
+| `rtc.conn.connected` | Connection State | Player is connected after setup |
+| `rtc.conn.provider-active` | Connection State | Provider connection state is connected |
+| `rtc.conn.view-attached` | Connection State | AvatarView is attached and idle is rendering |
+| `rtc.idle.no-stall-5s` | Idle Animation | Idle animation stream — no stall for 5s |
+| `rtc.idle.no-frame-overrun` | Idle Animation | Idle period — no animation frames pushed |
+| `rtc.audio.push-pcm-and-frames` | Audio Round-trip | Push PCM — avatar responds with animation |
+| `rtc.audio.multiple-sessions` | Audio Round-trip | Two PCM sessions — each produces animation |
+| `rtc.pub.start-stop` | Audio Publishing | Publish and unpublish microphone |
+| `rtc.pub.unpublish-when-idle` | Audio Publishing | Unpublish when not publishing — no crash |
+| `rtc.pub.publish-while-disconnected` | Audio Publishing | Publish while disconnected — throws notConnected |
+| `rtc.stab.sustained-15s` | Stability | Sustained connection — 15s without errors |
+| `rtc.stab.no-false-stall` | Stability | No false stall on healthy connection (8s) |
+| `rtc.rc.disconnect-reconnect` | Disconnect & Reconnect | Disconnect and reconnect |
+| `rtc.rc.new-room` | Disconnect & Reconnect | Connect to a fresh room/channel |
+| `rtc.err.double-disconnect` | Error Handling | Double disconnect — no crash |
+| `rtc.err.connect-when-connected` | Error Handling | connect() while already connected — throws alreadyConnected |
+| `rtc.err.rapid-publish-cycle` | Error Handling | Rapid publish/unpublish — no crash |
+| `rtc.ios.decode-invalid-frames` | iOS-Only | AvatarSDK.decodeAnimationFrames rejects garbage protobuf |
+| `rtc.ios.avatar-id-mismatch` | iOS-Only | decodeAnimationFrames rejects mismatched avatar id |
+| `rtc.ios.transition-end-smooth` | iOS-Only | Conversation transition-end does not jump (smoke) |
 
-The report is **plain text** (`:265+`) copied to the clipboard by hand. There is
-no JSON, no file output, and nothing a CI could consume.
+### The three `rtc.ios.*` cases
 
-## 3. Case identity and cross-SDK alignment
+They live in the `iOSOnly` group (`TestCases.swift:297-301`) and have no
+counterpart on Android or web, because they do not test RTC behaviour: they call
+main-SDK APIs directly — `AvatarSDK.decodeAnimationFrames(from:)` and
+`AvatarView.generateTransitionToFrame(_:frameCount:)`. That is also why they are
+not in the MOCK catalog. Two of them do less than their names say:
 
-Ids are semantic dotted strings (`TestTypes.swift:8`), `rtc.<group>.<slug>` /
-`mock.<group>.<slug>` — **not UUIDs**. The main SDKs use platform-registered
-UUIDs; the RTC layer does not participate in that scheme.
+- `rtc.ios.avatar-id-mismatch` cannot build a payload with an arbitrary avatar id
+  from outside the SDK, so it feeds empty `Data()` down the happy path, and its
+  `catch` only logs — **it passes whether or not anything throws**.
+- `rtc.ios.transition-end-smooth` is a smoke check by its own comment: it asserts
+  that an empty payload is rejected and **never looks at whether the transition
+  jumps**.
 
-| Suite | iOS | Android | Web |
-|-------|----:|--------:|----:|
-| Mock | **44** | 43 | 45 |
-| Live | **20** | 17 | — |
+## 4. Cross-SDK differences outside the catalog
 
-Verified by sorting both sides' ids and diffing:
+- **LIVE**: Android's LIVE ids are exactly iOS's minus the three `rtc.ios.*`
+  cases (verified by diffing the id sets); Android's own platform-only group is
+  empty. Web has no LIVE suite.
+- **Unit tests** are not aligned across platforms and are not part of the
+  catalog: iOS has the XCTest target above, Android has JVM unit tests under
+  `sdk/src/test`, web has its own vitest suite. Each repo's `test-cases.md` §1
+  describes its own.
+- **Ids** are semantic dotted strings (`mock.<group>.<slug>`,
+  `rtc.<group>.<slug>`), not the platform-registered UUIDs the main SDKs use. The
+  id string is the only thing tying a case to its counterparts.
 
-- **Mock: 43 ids are byte-identical between iOS and Android.** iOS adds
-  `mock.evt.conversation-state` for the conversation-state callback, which is
-  landing on all three SDKs in parallel — reuse the id on Android.
-- **Live: Android's 17 are a strict subset of iOS's 20.** The three extra are
- iOS-only, grouped under "iOS-Only" (`TestCases.swift:297-299`: *"Behavior that
- doesn't exist on web RTC SDK but is critical for iOS"*):
+## 5. Adding a case
 
-| id | Defined at |
-|----|-----------|
-| `rtc.ios.decode-invalid-frames` | `TestCases.swift:303` |
-| `rtc.ios.avatar-id-mismatch` | `:319` |
-| `rtc.ios.transition-end-smooth` | `:339` |
-
-> ⚠️ **Two of those three do not test what their names say** — record this rather
-> than trusting the titles:
->
-> - `rtc.ios.avatar-id-mismatch` cannot construct a payload with an arbitrary
-> avatar id from outside the SDK (`:324-328`), so it feeds empty `Data()` down
-> the happy path; and its `catch` only logs (`:333-336`), so **it passes whether
-> or not anything throws**.
-> - `rtc.ios.transition-end-smooth` is a smoke check by its own admission
-> (`:344-346`) — it asserts an empty payload is rejected (`:355`) and **never
-> looks at whether the transition jumps**.
-
-Android's `androidOnly` slot exists but is empty, so nothing flows the other way.
-
-## 4. Status
-
-**No case is statically skipped.** No `XCTSkip` anywhere, no commented-out
-`TestCase(`. `TestStatus.skip` exists (`TestTypes.swift:18`) and is handled in
-three places, but **nothing ever assigns it** — the skipped count in the report
-is permanently zero.
-
-Pass/fail is a runtime property; this document does not assert it, and there is
-no checked-in baseline report to cite.
-
-## 5. Mock suite (44)
-
-
-### Mock: Idle (2 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| Initial state — no frames, no stall | `mock.idle.fresh` | 3000 | `MockTestCases.swift:71` |
-| Many idle packets in a row — idempotent | `mock.idle.repeated-idempotent` | 3000 | `MockTestCases.swift:78` |
-
-### Mock: Speaking (4 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| Animation without leading transition starts a session | `mock.seq.no-transition` | 8000 | `MockTestCases.swift:93` |
-| transition-start + frames + transition-end | `mock.seq.with-transition` | 10000 | `MockTestCases.swift:102` |
-| Long session — 50 sequential frames | `mock.seq.long-session` | 12000 | `MockTestCases.swift:115` |
-| Frames with seq=nil bypass jitter buffer | `mock.seq.frameSeq-nil-direct-path` | 8000 | `MockTestCases.swift:123` |
-
-### Mock: Transitions (5 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| Repeated transition-start packets are idempotent | `mock.trans.start-then-start` | 6000 | `MockTestCases.swift:142` |
-| transition-end without active session — ignored | `mock.trans.end-without-session` | 6000 | `MockTestCases.swift:158` |
-| Repeated transition-end packets are idempotent | `mock.trans.end-then-end` | 8000 | `MockTestCases.swift:175` |
-| transition-start arriving mid-playback is dropped | `mock.trans.late-start-during-playback` | 8000 | `MockTestCases.swift:188` |
-| transition-start with no follow-up frames — no crash | `mock.trans.start-only-no-frames` | 5000 | `MockTestCases.swift:205` |
-
-### Mock: Boundaries (4 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| Session end with isEnd=true → idle marker | `mock.bound.anim-end-then-idle` | 6000 | `MockTestCases.swift:221` |
-| Two back-to-back sessions both accumulate | `mock.bound.back-to-back` | 14000 | `MockTestCases.swift:231` |
-| Hard idle without transition-end is accepted | `mock.bound.idle-skips-transition-end` | 6000 | `MockTestCases.swift:245` |
-| Duplicate isStart=true mid-session is ignored | `mock.bound.duplicate-isStart` | 8000 | `MockTestCases.swift:253` |
-
-### Mock: Jitter Buffer (7 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| Perfectly in-order frames render in order | `mock.jb.ordering-in-order` | 8000 | `MockTestCases.swift:277` |
-| Out-of-order frames are reordered by the buffer | `mock.jb.out-of-order` | 8000 | `MockTestCases.swift:289` |
-| Duplicate seq does not render twice | `mock.jb.duplicate-seq` | 8000 | `MockTestCases.swift:304` |
-| Sequence gap — buffer skips ahead | `mock.jb.gap` | 8000 | `MockTestCases.swift:319` |
-| Older seq after newer is dropped | `mock.jb.regression-old-seq` | 8000 | `MockTestCases.swift:337` |
-| Two frames is enough to enter draining | `mock.jb.tiny-burst` | 6000 | `MockTestCases.swift:356` |
-| Buffer starves between frames then resumes | `mock.jb.starve-then-resume` | 10000 | `MockTestCases.swift:364` |
-
-### Mock: Metadata (3 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| isRecovered=true bumps recovered counter | `mock.meta.isRecovered` | 6000 | `MockTestCases.swift:389` |
-| isEnd=true on first frame is tolerated | `mock.meta.isEnd-without-isStart` | 5000 | `MockTestCases.swift:404` |
-| Frame metadata isIdle=true is no-op for stats | `mock.meta.isIdle-flag` | 5000 | `MockTestCases.swift:416` |
-
-### Mock: Stall (4 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| 5s without frames in a session fires .stalled | `mock.stall.5s-fires` | 12000 | `MockTestCases.swift:432` |
-| Frame every second — no stall | `mock.stall.continuous-no-fire` | 12000 | `MockTestCases.swift:441` |
-| Stall fires once per silent window, not repeatedly | `mock.stall.fires-once-not-repeatedly` | 15000 | `MockTestCases.swift:452` |
-| Frames arriving after stall keep the session alive | `mock.stall.recover-after-stall` | 18000 | `MockTestCases.swift:463` |
-
-### Mock: Events (5 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| connect sequence emits connecting → connected | `mock.evt.connect-events` | 5000 | `MockTestCases.swift:484` |
-| disconnect emits .disconnected | `mock.evt.disconnect-event` | 5000 | `MockTestCases.swift:497` |
-| Provider .error event reaches subscribers | `mock.evt.error-propagates` | 4000 | `MockTestCases.swift:508` |
-| connectionChanged events reach subscribers | `mock.evt.connection-state-changed` | 4000 | `MockTestCases.swift:518` |
-| conversationStateChanged: speaking once, idle once, getter tracks | `mock.evt.conversation-state` | 10000 | `MockTestCases.swift:532` |
-
-### Mock: Player Guards (6 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| connect() while already connected throws | `mock.guard.connect-when-connected` | 5000 | `MockTestCases.swift:567` |
-| publishAudio() while disconnected throws | `mock.guard.publish-when-disconnected` | 6000 | `MockTestCases.swift:581` |
-| publishExternalPCM() while disconnected throws | `mock.guard.publishExternal-when-disconnected` | 6000 | `MockTestCases.swift:595` |
-| unpublishAudio() while not publishing is a no-op | `mock.guard.unpublish-idempotent` | 4000 | `MockTestCases.swift:609` |
-| Double disconnect() is a no-op | `mock.guard.disconnect-idempotent` | 6000 | `MockTestCases.swift:617` |
-| reconnect() with no prior config throws | `mock.guard.reconnect-without-history` | 4000 | `MockTestCases.swift:626` |
-
-### Mock: Provider Lifecycle (3 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| Provider error during connect surfaces to caller | `mock.life.connect-throws-propagates` | 8000 | `MockTestCases.swift:648` |
-| Provider error during publishAudio surfaces | `mock.life.publish-throws-propagates` | 5000 | `MockTestCases.swift:663` |
-| Reconnect after disconnect resets accumulated state | `mock.life.connect-disconnect-reset` | 12000 | `MockTestCases.swift:676` |
-
-### Mock: Stream Stats (1 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| Injected stream stats don't break playback | `mock.stats.simple-injection` | 6000 | `MockTestCases.swift:700` |
-
-## 6. Live suite (20)
-
-
-### Connection State (3 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| Player is connected after setup | `rtc.conn.connected` | 5000 | `TestCases.swift:16` |
-| Provider connection state is connected | `rtc.conn.provider-active` | 5000 | `TestCases.swift:25` |
-| AvatarView is attached and idle is rendering | `rtc.conn.view-attached` | 8000 | `TestCases.swift:35` |
-
-### Idle Animation (2 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| Idle animation stream — no stall for 5s | `rtc.idle.no-stall-5s` | 10000 | `TestCases.swift:52` |
-| Idle period — no animation frames pushed | `rtc.idle.no-frame-overrun` | 8000 | `TestCases.swift:65` |
-
-### Audio Round-trip (2 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| Push PCM — avatar responds with animation | `rtc.audio.push-pcm-and-frames` | 40000 | `TestCases.swift:90` |
-| Two PCM sessions — each produces animation | `rtc.audio.multiple-sessions` | 90000 | `TestCases.swift:103` |
-
-### Audio Publishing (3 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| Publish and unpublish microphone | `rtc.pub.start-stop` | 10000 | `TestCases.swift:124` |
-| Unpublish when not publishing — no crash | `rtc.pub.unpublish-when-idle` | 5000 | `TestCases.swift:136` |
-| Publish while disconnected — throws notConnected | `rtc.pub.publish-while-disconnected` | 20000 | `TestCases.swift:145` |
-
-### Stability (2 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| Sustained connection — 15s without errors | `rtc.stab.sustained-15s` | 25000 | `TestCases.swift:176` |
-| No false stall on healthy connection (8s) | `rtc.stab.no-false-stall` | 12000 | `TestCases.swift:191` |
-
-### Disconnect & Reconnect (2 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| Disconnect and reconnect | `rtc.rc.disconnect-reconnect` | 30000 | `TestCases.swift:207` |
-| Connect to a fresh room/channel | `rtc.rc.new-room` | 30000 | `TestCases.swift:224` |
-
-### Error Handling (3 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| Double disconnect — no crash | `rtc.err.double-disconnect` | 15000 | `TestCases.swift:250` |
-| connect() while already connected — throws alreadyConnected | `rtc.err.connect-when-connected` | 5000 | `TestCases.swift:262` |
-| Rapid publish/unpublish — no crash | `rtc.err.rapid-publish-cycle` | 15000 | `TestCases.swift:283` |
-
-### iOS-Only (3 cases)
-
-| Case | id | Timeout (ms) | Defined at |
-|------|----|--------------|-----------|
-| AvatarSDK.decodeAnimationFrames rejects garbage protobuf | `rtc.ios.decode-invalid-frames` | 5000 | `TestCases.swift:302` |
-| decodeAnimationFrames rejects mismatched avatar id | `rtc.ios.avatar-id-mismatch` | 5000 | `TestCases.swift:318` |
-| Conversation transition-end does not jump (smoke) | `rtc.ios.transition-end-smooth` | 8000 | `TestCases.swift:338` |
-
-## 7. Adding a case
-
-Append to the matching group in `MockTestCases.swift` (preferred — deterministic,
-no Agora) or `TestCases.swift`. Ids follow the existing dotted convention.
-
-**If the case also exists on Android, reuse its exact id** — that string is the
-only thing holding the two suites together, since RTC cases have no platform
-registry. Check `avatarkit-android-rtc/demo/.../integration/` first.
-
-Then update this file in the same commit
-.
+1. MOCK (preferred — deterministic, no Agora): the catalog changes first, for all
+   three repos at once; then add the case to the matching group in
+   `MockTestCases.swift` with exactly the catalog id and group, in catalog order.
+   `scripts/check-docs.sh` fails until code and catalog agree.
+2. LIVE: append to the matching group in `TestCases.swift`. If Android has the
+   case, reuse its exact id. Update the table in §3 in the same commit.
 
 ## Related
 

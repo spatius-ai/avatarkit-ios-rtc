@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.0] — 2026-10-20
 
 ### Added
 
@@ -13,9 +13,9 @@
   transition has fully played out, or when playback is cut back to idle (stall,
   bare idle packet, disconnect / detach). Only actual changes are reported, and
   nothing fires at construction. The main SDK's `onConversationState` callback
-  does not fire in RTC mode — use this event instead. Aligned with web and
-  Android. Hosts that `switch` exhaustively over `AvatarPlayerEvent` need to
-  handle the new case.
+  does not fire in RTC mode — use this event instead. Same API in the Android
+  RTC SDK 1.2.0; the web RTC SDK gets it in its next release. Hosts that
+  `switch` exhaustively over `AvatarPlayerEvent` need to handle the new case.
 
 ## [1.1.0] — 2026-10-19
 

@@ -27,9 +27,9 @@ enum TelemetryIdentity {
     /// beta.9 through 1.0.0. It fails silently — the wrong number simply appears
     /// on every telemetry record and nothing at runtime notices.
     ///
-    /// `scripts/check_version_consistency.sh` now fails the build when this and
-    /// the two podspecs disagree; the release process runs it before tagging.
-    static let sdkVersion = "1.1.0"
+    /// `scripts/check-release.sh` fails the release when this, the podspecs and
+    /// the other version locations disagree; the release process runs it.
+    static let sdkVersion = "1.2.0"
 
     @MainActor static func claim() {
         AvatarSDK.inject([

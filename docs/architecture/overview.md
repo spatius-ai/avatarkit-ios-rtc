@@ -2,7 +2,7 @@
 
 Layer: **current state** — describes the SDK as it is at HEAD. Present tense.
 Rewritten in place whenever the code changes; re-verified against source on every
-release (see the Documentation Alignment Gate section in this file).
+release ([`release-process.md`](release-process.md) §5).
 
 Pods `AvatarKitRTC` + `AvatarKitAgoraBridge`, v1.1.0. Swift 6.
 
@@ -24,7 +24,7 @@ ObjC++ bridge under `Sources/AvatarKitAgoraBridge/`.
 | `Providers/H264SEIExtractor.swift` | 163 | **Stateless `enum`.** NAL slicing, SEI NALU parsing, EBSP→RBSP |
 | `Providers/SEIPacketParser.swift` | 351 | `@MainActor final class`. Our own SEI wire format → typed events. **Carries session state** |
 | `Utils/Telemetry.swift` | 189 | Forwards to the host's `@_spi(RTC) RTCTelemetry` |
-| `Utils/TelemetryIdentity.swift` | 33 | `AvatarSDK.inject(...)` — see §5 |
+| `Utils/TelemetryIdentity.swift` | 40 | `AvatarSDK.inject(...)` — see §5 |
 | `Utils/ConversationId.swift` | 45 | Local round id; **not** a server conversation id (`:9-14`) |
 | `Utils/Logger.swift` | 60 | `RTCLogger` over `os.Logger`, subsystem `ai.spatius.avatarkit.rtc` |
 | `Utils/TelemetryRecorder.swift` | 175 | Mirrors four telemetry channels to a file. **Off by default** |
@@ -202,8 +202,8 @@ Android, which throws a catchable exception.
 > podspecs and missed this file — **every telemetry record shipped from v1.0.0
 > carries a version that was never released**, and those artifacts cannot be
 > corrected retroactively. HEAD is now correct, and
-> `scripts/check_version_consistency.sh` fails the release when the constant and
-> the two podspecs disagree.
+> `scripts/check-release.sh` fails the release when the constant and the other
+> version locations (podspecs, README, demo report header) disagree.
 > → [`release-process.md`](release-process.md) §2
 
 ### `AnimationHandler` is only partly decoupled

@@ -11,37 +11,46 @@
 # SwiftProtobuf) are NOT embedded — they are compiled for symbol resolution
 # only; the integrator supplies them at link time.
 #
-# Requirements: cocoapods, xcodegen, a local AvatarKit.xcframework pod.
+# Requirements: cocoapods, xcodegen.
 #
 # Usage:
-#   AVATARKIT_POD_PATH=/path/to/localpath_avatarkit \   # dir with AvatarKit.podspec + AvatarKit.xcframework
-#   AGORA_VERSION=4.5.2 \                                 # Agora pod version to compile against
 #   ./build-xcframework.sh
 #
+# Every dependency comes from the podspecs as committed — the release version,
+# SpatiusAvatarKit (from trunk) and the Agora pod. On an Agora special-build
+# branch (release-process.md §9) the podspecs name AgoraRtcEngine_Special_iOS,
+# so the same script compiles against the special SDK with no extra input.
+#
 # Output: dist/<Module>.xcframework  (ios-arm64 device + ios-arm64 simulator)
+#         dist/AvatarKitRTC-<version>-xcframeworks.zip  (both + DEPENDENCIES.txt)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 PKG="$ROOT/AvatarKitRTC"                 # the SPM package dir (holds the podspecs)
 OUT="$ROOT/dist"
 WORK="$(mktemp -d)/pack"                 # throwaway CocoaPods project
-AGORA_VERSION="${AGORA_VERSION:-4.5.2}"
-AVATARKIT_POD_PATH="${AVATARKIT_POD_PATH:-}"
-
 MODULES=("AvatarKitAgoraBridge" "AvatarKitRTC")
-
-if [ -z "$AVATARKIT_POD_PATH" ] || [ ! -f "$AVATARKIT_POD_PATH/AvatarKit.podspec" ]; then
-  echo "ERROR: set AVATARKIT_POD_PATH to a dir containing AvatarKit.podspec + AvatarKit.xcframework" >&2
-  echo "  (the vendored main-SDK pod; grab AvatarKit.xcframework from the ios-release GitHub Release)" >&2
-  exit 1
-fi
 
 command -v pod       >/dev/null || { echo "ERROR: cocoapods not installed" >&2; exit 1; }
 command -v xcodegen  >/dev/null || { echo "ERROR: xcodegen not installed"  >&2; exit 1; }
 
-echo "==> Agora version : $AGORA_VERSION"
-echo "==> AvatarKit pod  : $AVATARKIT_POD_PATH"
-echo "==> Package        : $PKG"
+# Read what the podspecs pin; they are the single source for all of it.
+podspec_value() {   # $1 = podspec, $2 = sed -E expression printing the value
+  sed -nE "$2" "$PKG/$1" | head -1
+}
+VERSION="$(podspec_value AvatarKitRTC.podspec 's/^[[:space:]]*spec\.version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p')"
+AGORA_POD="$(podspec_value AvatarKitAgoraBridge.podspec 's/^[[:space:]]*spec\.dependency[[:space:]]+"(AgoraRtcEngine[A-Za-z_]*)".*/\1/p')"
+AGORA_VERSION="$(podspec_value AvatarKitAgoraBridge.podspec 's/^[[:space:]]*spec\.dependency[[:space:]]+"AgoraRtcEngine[A-Za-z_]*",[[:space:]]*"([^"]+)".*/\1/p')"
+AVATARKIT_VERSION="$(podspec_value AvatarKitRTC.podspec 's/^[[:space:]]*spec\.dependency[[:space:]]+"SpatiusAvatarKit",[[:space:]]*"([^"]+)".*/\1/p')"
+PROTOBUF_VERSION="$(podspec_value AvatarKitRTC.podspec 's/^[[:space:]]*spec\.dependency[[:space:]]+"SwiftProtobuf",[[:space:]]*"([^"]+)".*/\1/p')"
+for v in VERSION AGORA_POD AGORA_VERSION AVATARKIT_VERSION PROTOBUF_VERSION; do
+  [ -n "${!v}" ] || { echo "ERROR: could not read $v from the podspecs" >&2; exit 1; }
+done
+
+echo "==> Version   : $VERSION"
+echo "==> Agora     : $AGORA_POD $AGORA_VERSION"
+echo "==> AvatarKit : SpatiusAvatarKit $AVATARKIT_VERSION"
+echo "==> Package   : $PKG"
 
 # ---------------------------------------------------------------------------
 # 1. Stage a copy of the package with podspec source_files rewritten for local
@@ -54,8 +63,8 @@ cp -R "$PKG/." "$STAGE/"
 sed -i '' 's|"AvatarKitRTC/Sources/|"Sources/|g' "$STAGE/AvatarKitRTC.podspec" "$STAGE/AvatarKitAgoraBridge.podspec"
 
 # ---------------------------------------------------------------------------
-# 2. Generate a minimal host app + Podfile that pulls the three local pods and
-#    the requested Agora version, then pod install.
+# 2. Generate a minimal host app + Podfile that pulls the two local pods; their
+#    podspecs bring SpatiusAvatarKit, SwiftProtobuf and the Agora pod.
 # ---------------------------------------------------------------------------
 mkdir -p "$WORK/App"
 cat > "$WORK/App/App.swift" <<'SWIFT'
@@ -77,10 +86,8 @@ platform :ios, '16.0'
 install! 'cocoapods', :warn_for_unused_master_specs_repo => false
 target 'Pack' do
   use_frameworks! :linkage => :static
-  pod 'AvatarKit',            :path => '$AVATARKIT_POD_PATH'
   pod 'AvatarKitAgoraBridge', :path => '$STAGE'
   pod 'AvatarKitRTC',         :path => '$STAGE'
-  pod 'AgoraRtcEngine_iOS',   '$AGORA_VERSION'
 end
 post_install do |i|
   i.pods_project.targets.each { |t| t.build_configurations.each { |c| c.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'x86_64' } }
@@ -117,8 +124,18 @@ for module in "${MODULES[@]}"; do
     -output "$OUT/$module.xcframework" >/dev/null
 done
 
+# 4. Zip both with a note of what the integrator must supply.
+cat > "$OUT/DEPENDENCIES.txt" <<TXT
+AvatarKitRTC $VERSION — offline XCFrameworks (AvatarKitRTC + AvatarKitAgoraBridge)
+
+Static frameworks; nothing third-party is embedded. The app must also link:
+  - AvatarKit (main SDK) $AVATARKIT_VERSION (CocoaPods: SpatiusAvatarKit $AVATARKIT_VERSION)
+  - Agora: $AGORA_POD $AGORA_VERSION — exactly this pod and version
+  - SwiftProtobuf $PROTOBUF_VERSION
+iOS 16.0+, arm64 device and arm64 simulator.
+TXT
+ZIP="$OUT/AvatarKitRTC-$VERSION-xcframeworks.zip"
+( cd "$OUT" && zip -qry "$(basename "$ZIP")" AvatarKitAgoraBridge.xcframework AvatarKitRTC.xcframework DEPENDENCIES.txt )
+
 echo "==> Done. Output in $OUT:"
-ls -d "$OUT"/*.xcframework
-echo
-echo "NOTE: AvatarKit.xcframework (main SDK) is shipped as-is from the ios-release"
-echo "      GitHub Release; add it to the delivery zip alongside these two."
+ls -d "$OUT"/*.xcframework "$ZIP"
