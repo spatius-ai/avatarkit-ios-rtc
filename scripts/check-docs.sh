@@ -23,7 +23,7 @@
 #   4. Markdown links: every relative [text](target) in README.md and docs/**/*.md
 #      resolves to an existing file (targets outside the repo are SKIPped).
 #   5. release-process.md carries the core sections shared by the three RTC repos
-#      (§1–§7 incl. 4.1–4.4 and 6.1) in order, here and in any sibling repo present.
+#      (§1–§7 incl. 4.1–4.5 and 6.1) in order, here and in any sibling repo present.
 #
 # Prints `PASS|FAIL|SKIP <check>: <value>` per check; exit code is non-zero
 # when any check fails.
@@ -264,7 +264,7 @@ print()
 # sections (e.g. iOS §6.2, §8) are allowed.
 
 print("== release-process structure ==")
-_CORE = ["1", "2", "3", "4", "4.1", "4.2", "4.3", "4.4", "5", "6", "6.1", "7"]
+_CORE = ["1", "2", "3", "4", "4.1", "4.2", "4.3", "4.4", "4.5", "5", "6", "6.1", "7"]
 _RTC_REPOS = ["avatarkit-web-rtc", "avatarkit-android-rtc", "avatarkit-ios-rtc"]
 
 def _section_numbers(path):
