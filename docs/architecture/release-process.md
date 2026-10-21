@@ -191,10 +191,32 @@ scripts/check-docs.sh
 - every relative Markdown link in `README.md` and `docs/` points at an existing
   file;
 - `release-process.md` here and in the sibling RTC repos carries the shared core
-  sections (§1–§7 incl. 4.1–4.4 and 6.1, in order; platform-specific extras such
+  sections (§1–§7 incl. 4.1–4.5 and 6.1, in order; platform-specific extras such
   as §6.2 / §8 are allowed).
 
 It does not judge whether prose is still true; §5 does.
+
+### 4.5 Dependency vulnerability check (required; report to the release owner)
+
+**What is scanned:** only the runtime dependencies a host actually installs or
+links; dev dependencies and build tooling are out of scope. The SPM resolution is the dependency set both channels pin (the podspecs pin the same versions); the main SDK is checked in its own release:
+
+```bash
+osv-scanner scan source -L Package.resolved
+```
+
+**Handling (hard rule):**
+
+- **Report the result to the release owner whether or not anything is found**
+  (report "0 findings" too).
+- If anything is found, at any severity, **stop**: list each finding's package,
+  version, CVSS / severity, fixed version and OSV link, plus whether our usage can
+  reach it and the evidence (read the code — not from memory), and discuss it with
+  the release owner.
+- The release owner decides to **waive** it (reason goes into the execution
+  summary) or **fix it before releasing**. The executor never waives on their own.
+
+Tool: `brew install osv-scanner` (OSV database; the same tool on every platform).
 
 ## 5. Documentation alignment gate (hard gate)
 
@@ -231,7 +253,7 @@ publish (web and Android publish first, then tag).
 ```bash
 # 1. Bump every version location (§2); scripts/check-release.sh versions passes
 # 2. CHANGELOG.md: move Unreleased into ## [<version>] — <date>
-# 3. §4.1 unit tests, §4.2 MOCK suite, §4.4 docs check, §5 alignment gate
+# 3. §4.1 unit tests, §4.2 MOCK suite, §4.4 docs check, §4.5 dependency check (report to the release owner), §5 alignment gate
 # 4. Commit and tag
 git commit -m "release: v<version>"
 git tag v<version>
@@ -272,6 +294,7 @@ List the **actual values and output** of this release, not "done":
 | Artifact check | The rest of `scripts/check-release.sh pre` output (podspecs, build, trunk, tag) |
 | Docs check | `scripts/check-docs.sh` output |
 | Docs alignment gate | Which `architecture/` files were verified, and what was changed |
+| Dependency vulnerability check | `osv-scanner` result (number of findings; each one listed) and the release owner's decision per finding |
 | CHANGELOG | The `## [<version>]` entry, consistent with what actually changed |
 
 > **Why actual values instead of ticks**: a tick cannot distinguish "did it" from
