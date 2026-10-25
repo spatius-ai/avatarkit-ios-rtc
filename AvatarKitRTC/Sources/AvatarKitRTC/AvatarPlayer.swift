@@ -432,7 +432,7 @@ public enum AvatarPlayerEvent: Sendable {
         }
     }
 
-    /// Subscribe to player events. Returns a token; call `unsubscribe(_:)` to remove.
+    /// Subscribe to player events. Handlers stay registered for the lifetime of the player.
     @discardableResult
     public func subscribe(_ handler: @escaping (AvatarPlayerEvent) -> Void) -> Int {
         subscribers.append(handler)
