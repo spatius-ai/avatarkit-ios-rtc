@@ -15,6 +15,7 @@ import Foundation
 /// constructed still lands ahead of it. (Android has no such window: its
 /// Resource is built synchronously inside initialize(), which is why that SDK
 /// declares a ContentProvider to claim the identity before app code runs.)
+@available(iOS 16.0, *)
 enum TelemetryIdentity {
     /// This package's version. Hand-written because Swift Package Manager has no
     /// build-time substitution — a package cannot read its own podspec, its git

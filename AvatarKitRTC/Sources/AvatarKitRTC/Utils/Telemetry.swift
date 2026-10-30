@@ -3,6 +3,7 @@
 /// Telemetry helpers for AvatarKitRTC. Piggybacks on AvatarKit's already-
 /// initialized PostHog channel via the `@_spi(RTC)` RTCTelemetry entry —
 /// same pattern as the web SDK reusing avatarkit's PostHog instance.
+@available(iOS 16.0, *)
 enum Telemetry {
     enum Level { case info, warning, error }
 

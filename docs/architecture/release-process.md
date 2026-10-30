@@ -423,6 +423,32 @@ the customer needs gets its own special build from that release's tag.
 |---|---|---|---|
 | — | — | — | (none yet) |
 
+## 10. compat-ios13 builds (iOS 13 deployment target)
+
+A customer's app deploys to iOS 13–15 and routes by OS version itself (below 16 it
+does not use AvatarKit). The requirement is only: an app with a 13.0 deployment
+target compiles and links, and launches on 13–15 without crashing. **Features on
+13–15 are not supported.** The main SDK has the matching build — its
+`release-process.md` §13 (`compat/ios13`, `<base>-compat-ios13`).
+
+The build is cut from the customer's Agora channel: this customer runs the §9
+special SDK, so the branch is `compat/ios13-agora-<special Agora version>` from the
+§9 branch, never merged back. Differences from that base, and nothing else:
+
+1. Deployment target 16.0 → 13.0: `Package.swift`, both podspecs. Agora's pods
+   declare iOS 8.0 and the 4.5.2.191.BASIC binaries are built for 9.0.
+2. Every top-level declaration in sources and tests is `@available(iOS 16.0, *)`.
+   A host that calls AvatarKitRTC outside `if #available(iOS 16.0, *)` gets a
+   compile error. The ObjC++ bridge needs no change.
+3. Main SDK dependency → `<main>-compat-ios13` on both channels (the public main
+   SDK declares 16.0 and cannot be imported from a 13.0 target).
+
+Verify: unit tests; an empty app with a 13.0 deployment target compiles and links
+with the `#available` gate, fails to compile without it, and launches into the SDK
+branch on a 16+ simulator. Launch on 13–15 cannot be checked locally
+(CoreSimulator refuses iOS 13/14 runtimes on hosts after macOS 12.99) — the
+customer confirms on their devices.
+
 ## Related
 
 - Docs map → [`docs-map.md`](docs-map.md)

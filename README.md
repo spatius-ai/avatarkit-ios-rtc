@@ -27,9 +27,11 @@ dependencies: [
 
 ## Requirements
 
-- iOS 16.0+
+- Deployment target iOS 13.0+ (`compat-ios13` build). Every AvatarKitRTC API is marked
+  `@available(iOS 16.0, *)`: call it inside `if #available(iOS 16.0, *)`. On iOS 13–15
+  the app links and launches, but AvatarKitRTC must not be used.
 - arm64
-- `AvatarKit` 1.3.6
+- `AvatarKit` 1.3.6-compat-ios13
 - `AgoraRtcEngine_iOS` 4.5.2 exactly — other versions are not supported: 4.6.x changed the
   encoded-frame callback, and 4.5.3 builds but delivers no avatar frames at runtime
 

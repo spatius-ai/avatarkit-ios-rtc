@@ -12,6 +12,7 @@ import AvatarKitAgoraBridge
 ///
 /// Audio is handled entirely by Agora — the SDK auto-subscribes and plays
 /// remote audio through its built-in audio session. We never touch PCM here.
+@available(iOS 16.0, *)
 @MainActor public final class AgoraProvider: BaseRTCProvider, AgoraRtcEngineDelegate {
     public override var name: String { "agora" }
 
@@ -537,6 +538,7 @@ import AvatarKitAgoraBridge
     }
 }
 
+@available(iOS 16.0, *)
 public enum AgoraProviderError: LocalizedError {
     case invalidConfig(String)
     case notConnected

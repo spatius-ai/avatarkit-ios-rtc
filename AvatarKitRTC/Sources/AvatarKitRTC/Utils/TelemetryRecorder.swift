@@ -18,6 +18,7 @@ import Foundation
 /// **Disabled by default.** `start()` turns it on; a shipped integration pays
 /// nothing for it and would never call `write()` to get the data back out.
 /// Nothing leaves the process until `write()` is called.
+@available(iOS 16.0, *)
 public final class TelemetryRecorder: @unchecked Sendable {
     public static let shared = TelemetryRecorder()
 

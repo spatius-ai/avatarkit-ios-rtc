@@ -9,6 +9,7 @@ import AvatarKit
 /// the real playback clock (40 ms slots), so the cases that need a transition
 /// to run out wait a few slots of wall time.
 @MainActor
+@available(iOS 16.0, *)
 final class ConversationStateTests: XCTestCase {
 
     /// Records renderer calls and hands back synthetic transition frames.

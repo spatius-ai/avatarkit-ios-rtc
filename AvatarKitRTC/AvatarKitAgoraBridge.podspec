@@ -13,7 +13,7 @@ Pod::Spec.new do |spec|
     :text => "Copyright © 2026 Spatius. All rights reserved. Use is subject to the Spatius commercial license agreement."
   }
   spec.author       = { "Spatius" => "hello@spatialwalk.net" }
-  spec.platform     = :ios, "16.0"
+  spec.platform     = :ios, "13.0"
   spec.source       = { :git => "https://github.com/spatius-ai/avatarkit-ios-rtc.git", :tag => "v#{spec.version}" }
 
   # Paths are relative to the repo root (what `:git` checks out), so they

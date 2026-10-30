@@ -12,6 +12,7 @@ import Foundation
 ///
 /// **Disabled by default.** The demo turns it on; nothing else does, and a
 /// shipped integration never pays for it.
+@available(iOS 16.0, *)
 public final class PlaybackProbe: @unchecked Sendable {
     public static let shared = PlaybackProbe()
 

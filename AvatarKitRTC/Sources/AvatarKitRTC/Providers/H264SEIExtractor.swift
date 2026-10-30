@@ -13,6 +13,7 @@ import Foundation
 /// directly. If the server prepends a UUID before its `[1B flags][4B msgLen]`
 /// header you'll need to strip it inside `SEIPacketParser`, not here, since
 /// this layer can't tell which SEIs belong to us.
+@available(iOS 16.0, *)
 enum H264SEIExtractor {
 
     /// Scan an Annex-B framed bitstream and return all SEI

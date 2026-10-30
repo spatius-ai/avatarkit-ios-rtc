@@ -12,6 +12,7 @@ import Foundation
 /// two frames' continuations can resume out of order — a late one overwriting
 /// a newer frame. Rendering inside the slot keeps order and timing where the
 /// scheduler can see them. Mirrors web's synchronous `AvatarRenderer`.
+@available(iOS 16.0, *)
 @MainActor protocol AvatarRendererAdapter: AnyObject {
     func renderFromProtobuf(_ data: Data)
     func renderFrame(_ frame: Frame?, startIdle: Bool)
@@ -21,6 +22,7 @@ import Foundation
 }
 
 /// Configuration for AnimationHandler. Matches web's AnimationHandlerConfig.
+@available(iOS 16.0, *)
 struct AnimationHandlerConfig {
     var transitionStartFrameCount: Int = 8
     var transitionEndFrameCount: Int = 40
@@ -37,6 +39,7 @@ struct AnimationHandlerConfig {
 }
 
 /// Jitter buffer state machine.
+@available(iOS 16.0, *)
 private enum BufferState {
     case direct
     case filling
@@ -45,6 +48,7 @@ private enum BufferState {
 }
 
 /// A frame held in the jitter buffer awaiting playback.
+@available(iOS 16.0, *)
 private struct BufferedFrame {
     let protobufData: Data
     let seq: Int
@@ -54,6 +58,7 @@ private struct BufferedFrame {
 
 /// One run of consecutive slots that rendered nothing — the picture frozen on
 /// whatever was last drawn.
+@available(iOS 16.0, *)
 private struct StallRun {
     /// Sequence the drain loop was waiting on.
     var waitingForSeq: Int
@@ -68,6 +73,7 @@ private struct StallRun {
     var endedAt: TimeInterval = 0
 }
 
+@available(iOS 16.0, *)
 private struct SkippedRange {
     let from: Int
     let to: Int
@@ -75,6 +81,7 @@ private struct SkippedRange {
 }
 
 /// How a round ended.
+@available(iOS 16.0, *)
 private enum EndReason: String {
     case none = ""
     case transition
@@ -85,6 +92,7 @@ private enum EndReason: String {
 
 /// Playback quality for one round: what reached the screen, as opposed to the
 /// jitter counters which describe what reached the buffer.
+@available(iOS 16.0, *)
 private struct QualityStats {
     /// Frames the start transition was asked to produce.
     var startTransitionExpected = 0
@@ -116,6 +124,7 @@ private struct QualityStats {
     var tailDiscarded = 0
 }
 
+@available(iOS 16.0, *)
 private struct JitterStatsCounters {
     var jitterDropStale = 0
     var jitterDropLate = 0
@@ -131,6 +140,7 @@ private struct JitterStatsCounters {
 /// Cumulative playback statistics. Exposed via `AvatarPlayer.sessionSummary`
 /// for tests and telemetry consumers; emitted as `rtc_session_summary` on
 /// disconnect.
+@available(iOS 16.0, *)
 public struct AnimationSessionSummary: Sendable {
     public var totalFrames = 0
     public var totalLost = 0
@@ -160,6 +170,7 @@ public struct AnimationSessionSummary: Sendable {
 /// - Per-conversation and per-session playback stats
 ///
 /// Used internally by AvatarPlayer.
+@available(iOS 16.0, *)
 @MainActor final class AnimationHandler {
     private let logger = RTCLogger("AnimationHandler")
     private let renderer: AvatarRendererAdapter

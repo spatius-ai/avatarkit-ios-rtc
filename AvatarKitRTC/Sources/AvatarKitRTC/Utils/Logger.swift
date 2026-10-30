@@ -2,6 +2,7 @@ import Foundation
 import os
 
 /// Log levels exposed to RTC consumers.
+@available(iOS 16.0, *)
 public enum RTCLogLevel: String, Sendable {
     case info
     case warning
@@ -11,6 +12,7 @@ public enum RTCLogLevel: String, Sendable {
 
 /// Internal logger used by AvatarKitRTC. Mirrors web's `logger` so log lines
 /// across SDKs are searchable with the same prefix scheme.
+@available(iOS 16.0, *)
 struct RTCLogger {
     nonisolated(unsafe) static var currentLevel: RTCLogLevel = .warning
 

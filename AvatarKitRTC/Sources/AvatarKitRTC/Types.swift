@@ -1,6 +1,7 @@
 import Foundation
 
 /// Connection state for RTC providers.
+@available(iOS 16.0, *)
 public enum RTCConnectionState: String, Sendable {
     case disconnected
     case connecting
@@ -15,12 +16,14 @@ public enum RTCConnectionState: String, Sendable {
 /// of a round until its closing transition has fully played out (or playback
 /// was cut back to idle). Unrelated to the main SDK's `ConversationState` —
 /// RTC drives the renderer directly, so that callback never fires in RTC mode.
+@available(iOS 16.0, *)
 public enum RTCConversationState: String, Sendable {
     case idle
     case speaking
 }
 
 /// Stream statistics for monitoring and debugging.
+@available(iOS 16.0, *)
 public struct RTCStreamStats: Sendable {
     public var framesPerSec: Double
     public var totalFrames: Int
@@ -56,6 +59,7 @@ public struct RTCStreamStats: Sendable {
 }
 
 /// Per-frame metadata coming from the wire.
+@available(iOS 16.0, *)
 public struct AnimationFrameMetadata: Sendable {
     public var frameSeq: Int?
     public var isStart: Bool
@@ -79,9 +83,11 @@ public struct AnimationFrameMetadata: Sendable {
 }
 
 /// RTC connection configuration. Provider-specific config conforms to this.
+@available(iOS 16.0, *)
 public protocol RTCConnectionConfig: Sendable {}
 
 /// Agora connection configuration.
+@available(iOS 16.0, *)
 public struct AgoraConnectionConfig: RTCConnectionConfig {
     public let appId: String
     public let channel: String

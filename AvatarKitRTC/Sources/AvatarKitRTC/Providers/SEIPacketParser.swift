@@ -19,6 +19,7 @@ import Compression
 ///
 /// For normal animation frames the decompressed payload is
 /// `[4B frameSeq][protobuf bytes]`. Transition frames have no frameSeq prefix.
+@available(iOS 16.0, *)
 @MainActor final class SEIPacketParser {
     private struct Flag {
         static let idle: UInt8 = 0x01

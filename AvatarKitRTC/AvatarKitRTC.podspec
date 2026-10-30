@@ -14,7 +14,7 @@ Pod::Spec.new do |spec|
     :text => "Copyright © 2026 Spatius. All rights reserved. Use is subject to the Spatius commercial license agreement."
   }
   spec.author       = { "Spatius" => "hello@spatialwalk.net" }
-  spec.platform     = :ios, "16.0"
+  spec.platform     = :ios, "13.0"
   spec.swift_version = "6.0"
   spec.source       = { :git => "https://github.com/spatius-ai/avatarkit-ios-rtc.git", :tag => "v#{spec.version}" }
 
@@ -48,7 +48,7 @@ Pod::Spec.new do |spec|
   # The host SDK is published to CocoaPods as SpatiusAvatarKit — `AvatarKit` was
   # already taken by someone else, and depending on that name pulls an unrelated
   # package. Its module_name is still AvatarKit, so imports are unaffected.
-  spec.dependency "SpatiusAvatarKit", "1.3.6"
+  spec.dependency "SpatiusAvatarKit", "1.3.6-compat-ios13"
   spec.dependency "SwiftProtobuf", "1.30.0"
   # Exact pin on purpose — see the comment on the Agora dependency in Package.swift
   # (4.5.3 builds but delivers no encoded frames on a device).

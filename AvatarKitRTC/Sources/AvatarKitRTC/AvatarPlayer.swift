@@ -3,6 +3,7 @@ import AvatarKit
 import AgoraRtcKit
 
 /// Configuration for AvatarPlayer.
+@available(iOS 16.0, *)
 public struct AvatarPlayerOptions: Sendable {
     public var logLevel: RTCLogLevel
     public var enableJitterBuffer: Bool
@@ -20,6 +21,7 @@ public struct AvatarPlayerOptions: Sendable {
 }
 
 /// Player-level events fired to consumers.
+@available(iOS 16.0, *)
 public enum AvatarPlayerEvent: Sendable {
     case connected
     case disconnected
@@ -47,6 +49,7 @@ public enum AvatarPlayerEvent: Sendable {
 /// try await player.unpublishAudio()
 /// await player.disconnect()
 /// ```
+@available(iOS 16.0, *)
 @MainActor public final class AvatarPlayer {
     private static let DISCONNECT_TRANSITION_FRAMES = 12
     private static let DISCONNECT_TRANSITION_FRAME_INTERVAL_NS: UInt64 = 40_000_000
@@ -708,6 +711,7 @@ public enum AvatarPlayerEvent: Sendable {
     }
 }
 
+@available(iOS 16.0, *)
 public enum AvatarPlayerError: LocalizedError {
     case alreadyConnected
     case notConnected
@@ -727,6 +731,7 @@ public enum AvatarPlayerError: LocalizedError {
 // MARK: - Adapters
 
 /// Bridges AnimationHandler.AvatarRendererAdapter to AvatarKit.AvatarView.
+@available(iOS 16.0, *)
 @MainActor private final class ViewRendererAdapter: AvatarRendererAdapter {
     private weak var view: AvatarView?
 
@@ -767,6 +772,7 @@ public enum AvatarPlayerError: LocalizedError {
 
 /// Bridges AnimationTrackCallbacks (provider-facing protocol) back to the
 /// AvatarPlayer's fileprivate handlers.
+@available(iOS 16.0, *)
 @MainActor private final class AnimationCallbacksBridge: AnimationTrackCallbacks {
     private weak var player: AvatarPlayer?
 

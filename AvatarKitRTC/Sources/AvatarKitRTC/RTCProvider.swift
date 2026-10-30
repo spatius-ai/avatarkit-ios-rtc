@@ -4,6 +4,7 @@ import Foundation
 /// Providers extract raw protobuf bytes from their transport (e.g. Agora SEI)
 /// and dispatch them through these hooks.
 /// Hooks run on the main actor — providers should hop threads before calling.
+@available(iOS 16.0, *)
 @MainActor public protocol AnimationTrackCallbacks: AnyObject {
     func onAnimationData(_ protobufData: Data, metadata: AnimationFrameMetadata)
     func onTransition(_ protobufData: Data, transitionFrameCount: Int)
@@ -16,6 +17,7 @@ import Foundation
 
 /// Default empty implementations so concrete callback objects only override
 /// what they care about.
+@available(iOS 16.0, *)
 @MainActor public extension AnimationTrackCallbacks {
     func onSessionStart() {}
     func onSessionEnd() {}
@@ -24,6 +26,7 @@ import Foundation
 /// Default `notSupported` stubs for providers that don't implement external
 /// audio. Tests / advanced consumers that need PCM injection will pick a
 /// provider that overrides these (e.g. AgoraProvider).
+@available(iOS 16.0, *)
 @MainActor public extension RTCProvider {
     func publishExternalPCM(sampleRate: Int, channels: Int) async throws {
         throw RTCProviderError.externalAudioNotSupported
@@ -49,6 +52,7 @@ import Foundation
 /// that cannot be obtained is left out rather than reported as zero.
 ///
 /// Aligned with web's `TransportStats` and Android's `TransportStats`.
+@available(iOS 16.0, *)
 public struct TransportStats: Sendable {
     /// Cumulative packets lost on the inbound stream.
     public var packetsLost: Int?
@@ -87,6 +91,7 @@ public struct TransportStats: Sendable {
     }
 }
 
+@available(iOS 16.0, *)
 public enum RTCProviderError: LocalizedError {
     case externalAudioNotSupported
 
@@ -99,6 +104,7 @@ public enum RTCProviderError: LocalizedError {
 }
 
 /// Provider events delivered to AvatarPlayer.
+@available(iOS 16.0, *)
 public enum RTCProviderEvent: Sendable {
     case connected
     case disconnected
@@ -109,6 +115,7 @@ public enum RTCProviderEvent: Sendable {
 /// Abstract interface every RTC provider must implement. iOS currently
 /// ships `AgoraProvider`. Applications normally interact with `AvatarPlayer`
 /// rather than this protocol directly.
+@available(iOS 16.0, *)
 @MainActor public protocol RTCProvider: AnyObject {
     /// Provider name, used for logs and telemetry.
     var name: String { get }
@@ -164,6 +171,7 @@ public enum RTCProviderEvent: Sendable {
 /// Common boilerplate shared between provider implementations.
 /// Inherits from NSObject so subclasses can adopt Objective-C delegate
 /// protocols (e.g. AgoraRtcEngineDelegate) directly.
+@available(iOS 16.0, *)
 @MainActor open class BaseRTCProvider: NSObject, RTCProvider {
     open var name: String { "base" }
 

@@ -14,6 +14,7 @@ import Foundation
 /// deliberately NOT presented as the server's conversation id.
 ///
 /// Aligned with web's `conversation-id.ts`.
+@available(iOS 16.0, *)
 enum ConversationId {
     /// URL-safe alphabet: A-Z, a-z, 0-9 (62 chars), matching web.
     private static let alphabet = Array(
