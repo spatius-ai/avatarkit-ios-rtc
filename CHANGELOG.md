@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.0-agora-special.4.5.2.191.BASIC-compat-ios13] — 2026-11-02
+
+The Agora special build `1.2.0-agora-special.4.5.2.191.BASIC` for apps whose
+deployment target is below iOS 16. On iOS 16 and later it behaves exactly like
+that build.
+
+### Changed
+
+- The minimum deployment target is iOS 13.0 instead of iOS 16.0, so an app that
+  targets iOS 13–15 can link AvatarKitRTC. Every AvatarKitRTC API is marked
+  `@available(iOS 16.0, *)`: call it inside `if #available(iOS 16.0, *)`. On
+  iOS 13–15 the app launches, but AvatarKitRTC must not be used there; it
+  provides no functionality below iOS 16.
+- Depends on AvatarKit `1.3.6-compat-ios13` (CocoaPods: `SpatiusAvatarKit`)
+  instead of `1.3.6`.
+
 ## [1.2.0-agora-special.4.5.2.191.BASIC] — 2026-10-20
 
 Agora special build of 1.2.0: identical code, depends on

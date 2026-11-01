@@ -421,7 +421,8 @@ the customer needs gets its own special build from that release's tag.
 
 | Version | Special Agora pod | Base | Date |
 |---|---|---|---|
-| — | — | — | (none yet) |
+| `1.2.0-agora-special.4.5.2.191.BASIC` | `AgoraRtcEngine_Special_iOS 4.5.2.191.BASIC` | `v1.2.0` | 2026-10-20 |
+| `1.2.0-agora-special.4.5.2.191.BASIC-compat-ios13` (§10) | `AgoraRtcEngine_Special_iOS 4.5.2.191.BASIC` | `v1.2.0-agora-special.4.5.2.191.BASIC` | 2026-11-02 |
 
 ## 10. compat-ios13 builds (iOS 13 deployment target)
 
@@ -433,7 +434,19 @@ target compiles and links, and launches on 13–15 without crashing. **Features 
 
 The build is cut from the customer's Agora channel: this customer runs the §9
 special SDK, so the branch is `compat/ios13-agora-<special Agora version>` from the
-§9 branch, never merged back. Differences from that base, and nothing else:
+§9 branch, never merged back.
+
+| | Form | Example |
+|---|---|---|
+| Version (both pods) | `<§9 version>-compat-ios13` | `1.2.0-agora-special.4.5.2.191.BASIC-compat-ios13` |
+| Tag | `v<version>` | `v1.2.0-agora-special.4.5.2.191.BASIC-compat-ios13` |
+| Branch | `compat/ios13-agora-<special Agora version>` | `compat/ios13-agora-4.5.2.191.BASIC` |
+| Offline zip | `AvatarKitRTC-<version>-xcframeworks.zip` | `AvatarKitRTC-1.2.0-agora-special.4.5.2.191.BASIC-compat-ios13-xcframeworks.zip` |
+
+`scripts/check-release.sh` strips the `-compat-ios13` suffix before reading the Agora
+version, and expects a 13.0 minimum iOS for such a version. Release steps are §9's.
+
+Differences from that base, and nothing else:
 
 1. Deployment target 16.0 → 13.0: `Package.swift`, both podspecs. Agora's pods
    declare iOS 8.0 and the 4.5.2.191.BASIC binaries are built for 9.0.

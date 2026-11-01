@@ -1,6 +1,6 @@
 Pod::Spec.new do |spec|
   spec.name         = "AvatarKitAgoraBridge"
-  spec.version      = "1.2.0-agora-special.4.5.2.191.BASIC"
+  spec.version      = "1.2.0-agora-special.4.5.2.191.BASIC-compat-ios13"
   spec.summary      = "ObjC++ bridge exposing Agora's encoded-frame observer to Swift"
   spec.description  = <<-DESC
                       Wraps Agora's C++ IVideoEncodedFrameObserver into a Swift-callable

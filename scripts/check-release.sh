@@ -104,7 +104,12 @@ echo
 # pin / base version on such a branch, and post skips the SPM checks.
 base_version="$version"
 special_agora=""
-if [[ "$version" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-agora-special\.(.+)$ ]]; then
+# A compat-ios13 build (§10) appends -compat-ios13 to the special version; it is
+# not part of the Agora pod's version, and it deploys to iOS 13.0.
+if [[ "$version" == *-compat-ios13 ]]; then
+    MIN_IOS="13.0"
+fi
+if [[ "${version%-compat-ios13}" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-agora-special\.(.+)$ ]]; then
     base_version="${BASH_REMATCH[1]}"
     special_agora="${BASH_REMATCH[2]}"
     echo "Agora special build: podspecs must pin AgoraRtcEngine_Special_iOS $special_agora (base version $base_version)"

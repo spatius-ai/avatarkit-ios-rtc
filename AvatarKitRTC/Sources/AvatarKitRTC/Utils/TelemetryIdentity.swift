@@ -30,7 +30,7 @@ enum TelemetryIdentity {
     ///
     /// `scripts/check-release.sh` fails the release when this, the podspecs and
     /// the other version locations disagree; the release process runs it.
-    static let sdkVersion = "1.2.0-agora-special.4.5.2.191.BASIC"
+    static let sdkVersion = "1.2.0-agora-special.4.5.2.191.BASIC-compat-ios13"
 
     @MainActor static func claim() {
         AvatarSDK.inject([
