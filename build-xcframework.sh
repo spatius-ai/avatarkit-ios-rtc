@@ -43,7 +43,8 @@ AGORA_POD="$(podspec_value AvatarKitAgoraBridge.podspec 's/^[[:space:]]*spec\.de
 AGORA_VERSION="$(podspec_value AvatarKitAgoraBridge.podspec 's/^[[:space:]]*spec\.dependency[[:space:]]+"AgoraRtcEngine[A-Za-z_]*",[[:space:]]*"([^"]+)".*/\1/p')"
 AVATARKIT_VERSION="$(podspec_value AvatarKitRTC.podspec 's/^[[:space:]]*spec\.dependency[[:space:]]+"SpatiusAvatarKit",[[:space:]]*"([^"]+)".*/\1/p')"
 PROTOBUF_VERSION="$(podspec_value AvatarKitRTC.podspec 's/^[[:space:]]*spec\.dependency[[:space:]]+"SwiftProtobuf",[[:space:]]*"([^"]+)".*/\1/p')"
-for v in VERSION AGORA_POD AGORA_VERSION AVATARKIT_VERSION PROTOBUF_VERSION; do
+MIN_IOS="$(podspec_value AvatarKitRTC.podspec 's/^[[:space:]]*spec\.platform[[:space:]]*=[[:space:]]*:ios,[[:space:]]*"([^"]+)".*/\1/p')"
+for v in VERSION AGORA_POD AGORA_VERSION AVATARKIT_VERSION PROTOBUF_VERSION MIN_IOS; do
   [ -n "${!v}" ] || { echo "ERROR: could not read $v from the podspecs" >&2; exit 1; }
 done
 
@@ -73,7 +74,7 @@ import SwiftUI
 SWIFT
 cat > "$WORK/project.yml" <<YML
 name: Pack
-options: { bundleIdPrefix: ai.spatius.pack, deploymentTarget: { iOS: "16.0" } }
+options: { bundleIdPrefix: ai.spatius.pack, deploymentTarget: { iOS: "$MIN_IOS" } }
 targets:
   Pack:
     type: application
@@ -82,7 +83,7 @@ targets:
     settings: { base: { GENERATE_INFOPLIST_FILE: YES, PRODUCT_BUNDLE_IDENTIFIER: ai.spatius.pack, SWIFT_VERSION: "6.0" } }
 YML
 cat > "$WORK/Podfile" <<RUBY
-platform :ios, '16.0'
+platform :ios, '$MIN_IOS'
 install! 'cocoapods', :warn_for_unused_master_specs_repo => false
 target 'Pack' do
   use_frameworks! :linkage => :static
@@ -132,7 +133,7 @@ Static frameworks; nothing third-party is embedded. The app must also link:
   - AvatarKit (main SDK) $AVATARKIT_VERSION (CocoaPods: SpatiusAvatarKit $AVATARKIT_VERSION)
   - Agora: $AGORA_POD $AGORA_VERSION — exactly this pod and version
   - SwiftProtobuf $PROTOBUF_VERSION
-iOS 16.0+, arm64 device and arm64 simulator.
+Deployment target iOS $MIN_IOS+, arm64 device and arm64 simulator.
 TXT
 ZIP="$OUT/AvatarKitRTC-$VERSION-xcframeworks.zip"
 ( cd "$OUT" && zip -qry "$(basename "$ZIP")" AvatarKitAgoraBridge.xcframework AvatarKitRTC.xcframework DEPENDENCIES.txt )
