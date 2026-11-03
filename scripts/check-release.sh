@@ -2,7 +2,7 @@
 #
 # Release checks for AvatarKitRTC + AvatarKitAgoraBridge.
 #
-#   scripts/check-release.sh pre  [version]   before `pod trunk push`
+#   scripts/check-release.sh pre  [version]   before `pod repo push avatarkit-specs`
 #   scripts/check-release.sh post [version]   after both pods are pushed
 #   scripts/check-release.sh versions         the version-location section only
 #
@@ -22,20 +22,22 @@
 #
 #   pre   version locations, podspecs parse (`pod ipc spec`), AvatarKitRTC
 #         builds for an iOS simulator, CHANGELOG entry (and no leftover
-#         [Unreleased]), offline xcframeworks in dist/ if built, the version is not on
-#         trunk yet, the tag v<version> exists locally / on origin and carries
+#         [Unreleased]), offline xcframeworks in dist/ if built, the version is not in
+#         the spec repo yet, the tag v<version> exists locally / on origin and carries
 #         this version in both podspecs.
-#   post  trunk lists the version for both pods, the CocoaPods CDN serves both
-#         specs, the tag is on origin, a throwaway SPM package pinned
+#   post  the spec repo (spatius-ai/avatarkit-specs) has the version for both
+#         pods, the tag is on origin, a throwaway SPM package pinned
 #         `exact: <version>` resolves (prints what it resolved to) and compiles
-#         `import AvatarKitRTC`, and a throwaway app installs the pod from trunk
-#         and builds for simulator + device (unsigned). Trunk and
-#         the CDN lag behind `pod trunk push`, so those are polled — at most
-#         POLL_MINUTES (default 30) in total.
+#         `import AvatarKitRTC`, and a throwaway app installs the pod from the
+#         spec repo (+ the CocoaPods CDN for Agora and SwiftProtobuf) and builds
+#         for simulator + device (unsigned).
+#
+# CocoaPods trunk is read-only from 2026-12-02, so both pods are published with
+# `pod repo push avatarkit-specs` (release-process.md §6). A spec repo push is a
+# plain git push, so unlike trunk / CDN there is nothing to poll.
 #
 # Environment:
 #   SIMULATOR_ID=<udid>   simulator for the pre build (default: picked)
-#   POLL_MINUTES=<n>      post polling budget (default 30)
 
 set -euo pipefail
 
@@ -48,7 +50,8 @@ source scripts/lib/simulator.sh
 PINNED_AGORA="4.5.2"
 MIN_IOS="16.0"
 
-PODS=(AvatarKitAgoraBridge AvatarKitRTC)   # trunk push order
+PODS=(AvatarKitAgoraBridge AvatarKitRTC)   # push order
+SPECS_URL="https://github.com/spatius-ai/avatarkit-specs.git"
 SPM_URL="https://github.com/spatius-ai/avatarkit-ios-rtc.git"
 
 mode="${1:-}"
@@ -249,7 +252,7 @@ check_tag_local() {
         pass "tag $tag local" "${sha:0:7} (HEAD is ${head:0:7}, not the tag)"
     fi
 
-    # What trunk validates is the podspec at the tag, not the working tree.
+    # What `pod repo push` validates (and customers fetch) is the source at the tag, not the working tree.
     local pod at_tag
     for pod in "${PODS[@]}"; do
         at_tag="$(git show "$tag:AvatarKitRTC/$pod.podspec" 2>/dev/null |
@@ -269,7 +272,7 @@ check_tag_remote() {
         return
     fi
     if [[ -z "$remote" ]]; then
-        fail "tag $tag on origin" "not pushed — git push origin $tag before pod trunk push"
+        fail "tag $tag on origin" "not pushed — git push origin $tag before pod repo push"
         return
     fi
     # Annotated tags list a peeled ^{} line with the commit; prefer it.
@@ -286,41 +289,27 @@ check_tag_remote() {
 }
 
 # ---------------------------------------------------------------------------
-# Trunk / CDN
+# Spec repo (spatius-ai/avatarkit-specs)
 # ---------------------------------------------------------------------------
 
-# Prints the comma-separated version list for a pod, "-" when trunk does not
-# know the pod (404). Returns 1 when trunk could not be reached.
-trunk_versions() {
-    local pod="$1" body code
-    body="$(mktemp)"
-    code="$(curl -s --retry 3 --max-time 30 -o "$body" -w '%{http_code}' \
-        "https://trunk.cocoapods.org/api/v1/pods/$pod" || true)"
-    case "$code" in
-        200) python3 -c 'import json,sys; print(",".join(v["name"] for v in json.load(open(sys.argv[1]))["versions"]))' "$body" ;;
-        404) echo "-" ;;
-        *) rm -f "$body"; return 1 ;;
-    esac
-    rm -f "$body"
+# Prints the comma-separated version list for a pod in the spec repo, "-" when
+# the repo has no directory for the pod. Returns 1 when the repo could not be
+# cloned. Each call takes a fresh shallow clone, so it always sees origin/main.
+specs_versions() {
+    local pod="$1" dir
+    dir="$(mktemp -d "${TMPDIR:-/tmp}/avatarkit-specs.XXXXXX")"
+    if ! git clone -q --depth 1 "$SPECS_URL" "$dir" 2>/dev/null; then
+        rm -rf "$dir"; return 1
+    fi
+    if [[ -d "$dir/Specs/$pod" ]]; then
+        ls "$dir/Specs/$pod" | paste -sd, -
+    else
+        echo "-"
+    fi
+    rm -rf "$dir"
 }
 
 has_version() { tr ',' '\n' <<<"$1" | grep -qxF "$version"; }
-
-# CocoaPods CDN layout: shard = first three hex digits of md5(pod name).
-cdn_shard() { local h; h="$(printf %s "$1" | md5)"; echo "${h:0:1}/${h:1:1}/${h:2:1}"; }
-
-# 0 when the CDN index lists the version and the podspec JSON is served with it.
-cdn_has_version() {
-    local pod="$1" shard index spec
-    shard="$(cdn_shard "$pod")"
-    index="$(curl -sL --retry 3 --max-time 30 \
-        "https://cdn.cocoapods.org/all_pods_versions_${shard//\//_}.txt" | grep "^$pod/" || true)"
-    tr '/' '\n' <<<"$index" | tail -n +2 | grep -qxF "$version" || return 1
-    spec="$(curl -sL --retry 3 --max-time 30 \
-        "https://cdn.cocoapods.org/Specs/$shard/$pod/$version/$pod.podspec.json" || true)"
-    python3 -c 'import json,sys; sys.exit(0 if json.loads(sys.argv[1]).get("version")==sys.argv[2] else 1)' \
-        "$spec" "$version" 2>/dev/null
-}
 
 # ---------------------------------------------------------------------------
 # pre
@@ -405,14 +394,14 @@ PY
 
     echo "--- Not yet published ---"
     for pod in "${PODS[@]}"; do
-        if ! versions="$(trunk_versions "$pod")"; then
-            fail "trunk $pod $version not published" "trunk API unreachable"
+        if ! versions="$(specs_versions "$pod")"; then
+            fail "specs $pod $version not published" "spec repo $SPECS_URL could not be cloned"
         elif [[ "$versions" == "-" ]]; then
-            pass "trunk $pod $version not published" "pod not registered on trunk"
+            pass "specs $pod $version not published" "pod not in the spec repo yet"
         elif has_version "$versions"; then
-            fail "trunk $pod $version not published" "$version is already on trunk (published: $versions)"
+            fail "specs $pod $version not published" "$version is already in the spec repo (published: $versions)"
         else
-            pass "trunk $pod $version not published" "published: $versions"
+            pass "specs $pod $version not published" "published: $versions"
         fi
     done
     echo
@@ -477,51 +466,16 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "$mode" == "post" ]]; then
     tmp_root="${TMPDIR:-/tmp}"
-    poll_minutes="${POLL_MINUTES:-30}"
     started=$SECONDS
-    deadline=$((SECONDS + poll_minutes * 60))
 
-    # poll <description> <command...>: retries every 30 s until the command
-    # succeeds or the shared deadline passes. Sets `waited` to the time spent
-    # waiting (0 when the first attempt succeeded).
-    poll() {
-        local what="$1"; shift
-        local t0=$SECONDS
-        waited=0
-        while ! "$@"; do
-            waited=$((SECONDS - t0))
-            if (( SECONDS >= deadline )); then
-                echo "  ... gave up on $what after ${waited}s (POLL_MINUTES=$poll_minutes)"
-                return 1
-            fi
-            echo "  ... waiting for $what (${waited}s)"
-            sleep 30
-        done
-        (( waited > 0 )) && waited=$((SECONDS - t0))
-        return 0
-    }
-
-    # Leaves the last list it saw in `trunk_seen` for the report line.
-    trunk_seen=""
-    trunk_lists() { trunk_seen="$(trunk_versions "$1")" || { trunk_seen="unreachable"; return 1; }; has_version "$trunk_seen"; }
-
-    echo "--- Trunk ---"
+    echo "--- Spec repo ---"
     for pod in "${PODS[@]}"; do
-        if poll "trunk $pod $version" trunk_lists "$pod"; then
-            pass "trunk $pod $version" "listed (versions: $trunk_seen; waited ${waited}s)"
+        if ! versions="$(specs_versions "$pod")"; then
+            fail "specs $pod $version" "spec repo $SPECS_URL could not be cloned"
+        elif has_version "$versions"; then
+            pass "specs $pod $version" "Specs/$pod/$version in $SPECS_URL (versions: $versions)"
         else
-            fail "trunk $pod $version" "not listed by trunk API (versions: $trunk_seen)"
-        fi
-    done
-    echo
-
-    echo "--- CDN ---"
-    for pod in "${PODS[@]}"; do
-        url="https://cdn.cocoapods.org/Specs/$(cdn_shard "$pod")/$pod/$version/$pod.podspec.json"
-        if poll "CDN $pod $version" cdn_has_version "$pod"; then
-            pass "cdn $pod $version" "in all_pods_versions_$(cdn_shard "$pod" | tr / _).txt, $url served (waited ${waited}s)"
-        else
-            fail "cdn $pod $version" "not on the CDN yet ($url)"
+            fail "specs $pod $version" "not in the spec repo (versions: $versions) — pod repo push avatarkit-specs AvatarKitRTC/$pod.podspec"
         fi
     done
     echo
@@ -604,10 +558,11 @@ PY
     echo
 
     echo "--- CocoaPods consumer ---"
-    # A throwaway app that installs AvatarKitRTC from trunk exactly as a host
-    # would (static frameworks), then builds for the simulator and for a device
-    # (unsigned). Catches what the trunk/CDN checks cannot: resolution across
-    # the two pods + SpatiusAvatarKit + Agora, and compile/link errors.
+    # A throwaway app that installs AvatarKitRTC from the spec repo exactly as a
+    # host would (static frameworks; our pods from avatarkit-specs, Agora and
+    # SwiftProtobuf from the CDN), then builds for the simulator and for a device
+    # (unsigned). Catches what the spec repo check cannot: resolution across the
+    # two pods + SpatiusAvatarKit + Agora, and compile/link errors.
     if ! command -v xcodegen >/dev/null || ! command -v pod >/dev/null; then
         fail "cocoapods consumer" "needs xcodegen and cocoapods"
     else
@@ -641,6 +596,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: check.rtc.consumer
 YML
         cat >"$pod_dir/Podfile" <<PODFILE
+source '$SPECS_URL'
+source 'https://cdn.cocoapods.org/'
 platform :ios, '16.0'
 target 'RTCPodConsumer' do
   use_frameworks! :linkage => :static

@@ -17,7 +17,7 @@
 #   ./build-xcframework.sh
 #
 # Every dependency comes from the podspecs as committed — the release version,
-# SpatiusAvatarKit (from trunk) and the Agora pod. On an Agora special-build
+# SpatiusAvatarKit (from the avatarkit-specs spec repo) and the Agora pod. On an Agora special-build
 # branch (release-process.md §9) the podspecs name AgoraRtcEngine_Special_iOS,
 # so the same script compiles against the special SDK with no extra input.
 #
@@ -81,7 +81,11 @@ targets:
     sources: [App]
     settings: { base: { GENERATE_INFOPLIST_FILE: YES, PRODUCT_BUNDLE_IDENTIFIER: ai.spatius.pack, SWIFT_VERSION: "6.0" } }
 YML
+# SpatiusAvatarKit (and both RTC pods) live in our spec repo — CocoaPods trunk is
+# read-only from 2026-12-02; Agora / SwiftProtobuf still come from the CDN.
 cat > "$WORK/Podfile" <<RUBY
+source 'https://github.com/spatius-ai/avatarkit-specs.git'
+source 'https://cdn.cocoapods.org/'
 platform :ios, '16.0'
 install! 'cocoapods', :warn_for_unused_master_specs_repo => false
 target 'Pack' do

@@ -14,7 +14,7 @@ same MOCK case catalog ([`test-cases.md`](test-cases.md) §2).
 | Repository | `avatarkit-ios-rtc` (`spatius-ai/avatarkit-ios-rtc`) |
 | Pods | **`AvatarKitAgoraBridge`** + **`AvatarKitRTC`** — both are published, in that order (§6) |
 | SPM product | `AvatarKitRTC` (the bridge is not exposed as a product, `Package.swift:8-13`) |
-| Distribution channels | **Three**: CocoaPods trunk, SPM (via the git tag), offline xcframework zip (§6.2) |
+| Distribution channels | **Three**: CocoaPods via our spec repo [`spatius-ai/avatarkit-specs`](https://github.com/spatius-ai/avatarkit-specs) (shared with `SpatiusAvatarKit`; CocoaPods trunk is read-only from 2026-12-02), SPM (via the git tag), offline xcframework zip (§6.2) |
 | CI | **None.** The repo has no `.github/`; every gate is run manually and locally |
 | Platform | iOS 16.0, Swift 6.0, arm64 (device and Apple Silicon simulator) |
 | Toolchain | Xcode (tested with 26.x), CocoaPods (`pod`), `python3`, `curl`; `xcodegen` only for the xcframework |
@@ -98,9 +98,12 @@ and the bridge is pushed first (§6).
 2. All version locations bumped; `scripts/check-release.sh versions` passes.
 3. `CHANGELOG.md` has a `## [<version>]` entry, including the main SDK version
    this release requires.
-4. If the main SDK was bumped: that `SpatiusAvatarKit` version is already on trunk
-   and the `avatarkit-ios-release` tag exists.
-5. The target version is not on trunk yet (checked by `check-release.sh pre`).
+4. If the main SDK was bumped: that `SpatiusAvatarKit` version is already in
+   `avatarkit-specs` and the `avatarkit-ios-release` tag exists.
+5. The target version is not in `avatarkit-specs` yet (checked by `check-release.sh pre`).
+6. `pod repo list` shows `avatarkit-specs` (one-time setup:
+   `pod repo add avatarkit-specs https://github.com/spatius-ai/avatarkit-specs.git`),
+   and this machine can push to that repo.
 
 ## 4. Local verification
 
@@ -158,7 +161,7 @@ Checks, each printed as `PASS|FAIL <check>: <value>`:
   platform and exact dependency set;
 - `xcodebuild build -scheme AvatarKitRTC` succeeds for an iOS simulator;
 - `CHANGELOG.md` has `## [<version>]` and no leftover `## [Unreleased]`;
-- neither pod has the version on trunk yet (trunk API);
+- neither pod has the version in `avatarkit-specs` yet (fresh shallow clone of the spec repo);
 - tag `v<version>` exists locally, both podspecs at the tag carry the version,
   and the tag is on `origin` with the same commit;
 - offline xcframeworks (§6.2), **only if `dist/` has been built** (SKIP
@@ -247,8 +250,14 @@ Rules:
 
 ## 6. Release steps
 
-CocoaPods trunk clones the tag, so on iOS the tag is pushed **before** the
-publish (web and Android publish first, then tag).
+CocoaPods trunk is read-only from 2026-12-02 (the CocoaPods team froze the public
+Specs repo for security reasons, https://blog.cocoapods.org/CocoaPods-Specs-Repo/), so
+both pods are published to our own spec repo
+[`spatius-ai/avatarkit-specs`](https://github.com/spatius-ai/avatarkit-specs), shared with
+`SpatiusAvatarKit`. Every version that used to be on trunk is mirrored there unchanged.
+
+Validation clones the tag (the podspecs' `:git` source), so on iOS the tag is pushed
+**before** the publish (web and Android publish first, then tag).
 
 ```bash
 # 1. Bump every version location (§2); scripts/check-release.sh versions passes
@@ -257,26 +266,28 @@ publish (web and Android publish first, then tag).
 # 4. Commit and tag
 git commit -m "release: v<version>"
 git tag v<version>
-# 5. Push the branch and the tag (trunk fails immediately without the tag)
+# 5. Push the branch and the tag (validation fails immediately without the tag)
 git push origin main && git push origin v<version>
 # 6. scripts/check-release.sh pre   — everything PASS
 # 7. Write the execution summary (§6.1), then STOP at the human gate
 # 8. After explicit confirmation — bridge first, then the main pod
 cd AvatarKitRTC
-pod trunk push AvatarKitAgoraBridge.podspec --allow-warnings
-pod trunk push AvatarKitRTC.podspec
+pod repo push avatarkit-specs AvatarKitAgoraBridge.podspec --sources=avatarkit-specs,trunk --allow-warnings
+pod repo push avatarkit-specs AvatarKitRTC.podspec --sources=avatarkit-specs,trunk
 ```
 
-> **Human gate.** `pod trunk push` is an irreversible public release — a pushed
-> version is taken forever. Run step 8 only after the release owner has
-> explicitly confirmed, on the basis of §6.1.
+> **Human gate.** `pod repo push` publishes to a public repo that customers read on
+> `pod install --repo-update` — treat it as an irreversible public release: once a
+> customer has resolved a version, removing or rewriting its spec breaks their
+> `Podfile.lock`, so a pushed version is never changed or removed. Run step 8 only
+> after the release owner has explicitly confirmed, on the basis of §6.1.
 
 > **Order cannot be reversed.** `AvatarKitRTC` depends on the exact
 > `AvatarKitAgoraBridge` version; pushing it first fails dependency resolution.
 > If the bridge push succeeded and the main pod failed, fix and push only the
 > main pod — the bridge version is already taken.
 
-> **`--allow-warnings`.** Trunk validation compiles the bridge against Agora's
+> **`--allow-warnings`.** Validation compiles the bridge against Agora's
 > headers, which emit `-Wdocumentation` warnings this repo cannot fix; without the
 > flag the push fails on them. Bridge 1.1.0 was pushed with `--allow-warnings`. If
 > the main pod's validation fails on the same header warnings only, re-run it with
@@ -291,7 +302,7 @@ List the **actual values and output** of this release, not "done":
 | Versions and dependencies | Paste the `scripts/check-release.sh pre` version section |
 | Unit tests | `scripts/run-unit-tests.sh` and its `executed=<n> failed=<n>` line |
 | MOCK | The report's `Result` line, `RTC SDK` / `Main SDK` lines and `Device` line |
-| Artifact check | The rest of `scripts/check-release.sh pre` output (podspecs, build, trunk, tag) |
+| Artifact check | The rest of `scripts/check-release.sh pre` output (podspecs, build, spec repo, tag) |
 | Docs check | `scripts/check-docs.sh` output |
 | Docs alignment gate | Which `architecture/` files were verified, and what was changed |
 | Dependency vulnerability check | `osv-scanner` result (number of findings; each one listed) and the release owner's decision per finding |
@@ -316,7 +327,7 @@ List the **actual values and output** of this release, not "done":
 ```
 
 It needs `cocoapods` + `xcodegen` and takes no input: the version, the main SDK
-(`SpatiusAvatarKit` from trunk), SwiftProtobuf and the Agora pod are all read
+(`SpatiusAvatarKit` from `avatarkit-specs`), SwiftProtobuf and the Agora pod are all read
 from the podspecs (`build-xcframework.sh:41-48`), so the same command builds the
 public package on `main` and the special-SDK package on a §9 branch.
 `DEPENDENCIES.txt` names exactly what the integrator must link alongside
@@ -338,23 +349,22 @@ Attach the zip to the GitHub Release of the tag.
 scripts/check-release.sh post
 ```
 
-- trunk API lists the version for **both** pods;
-- the CocoaPods CDN index (`all_pods_versions_<shard>.txt`) lists it and serves
-  `Specs/<shard>/<Pod>/<version>/<Pod>.podspec.json`;
+- `avatarkit-specs` has `Specs/<Pod>/<version>/` for **both** pods (fresh shallow clone);
 - tag `v<version>` is on `origin`;
 - a throwaway SPM package with `.package(url: …avatarkit-ios-rtc.git, exact:
   "<version>")` resolves, and the resolved `avatarkit-ios-rtc`,
   `avatarkit-ios-release` and `AgoraRtcEngine_iOS` versions are printed and
   checked — then the package, which `import`s `AvatarKitRTC`, is built for an
   iOS simulator;
-- a throwaway app (xcodegen) installs `AvatarKitRTC` **from trunk** with
+- a throwaway app (xcodegen) installs `AvatarKitRTC` the way a customer does —
+  `source` `avatarkit-specs` + `cdn.cocoapods.org`, our three pods from the spec repo,
+  Agora and SwiftProtobuf from the CDN — with
   `use_frameworks! :linkage => :static` and builds for the simulator and for a
   device (unsigned). This is the clean-project integration that caught the
   simulator-architecture bug in `4e6c188` (§8); lint does not.
 
-Trunk and the CDN lag behind `pod trunk push`; those checks poll every 30 s, at
-most `POLL_MINUTES` (default 30) in total, and print how long they waited. The
-first SPM resolve on a machine downloads the AvatarKit and Agora binaries and can
+A spec repo push is a plain git push, so unlike trunk / the CDN there is no lag
+and nothing is polled. The first SPM resolve on a machine downloads the AvatarKit and Agora binaries and can
 take many minutes; later runs are fast.
 
 Then, by hand:
@@ -410,7 +420,7 @@ Agora dependency changes.
 The `-` makes it a CocoaPods pre-release: `pod 'AvatarKitRTC'` and `~> 1.2` never
 resolve to it; a customer gets it only by writing the full version.
 
-**Channels:** CocoaPods trunk and the offline zip. **Not SPM** — Agora ships no
+**Channels:** CocoaPods (`avatarkit-specs`) and the offline zip. **Not SPM** — Agora ships no
 special SDK over SPM; `Package.swift` on the branch keeps the public pin, and the
 README there says so.
 
@@ -430,11 +440,11 @@ README there says so.
    conversation. MOCK alone does not touch Agora.
 4. `scripts/check-release.sh pre` — it recognises the version form and checks the
    podspecs against `AgoraRtcEngine_Special_iOS <v>`.
-5. Commit, tag, push the branch and the tag; `pod trunk push` both pods as in §6
+5. Commit, tag, push the branch and the tag; `pod repo push avatarkit-specs` both pods as in §6
    (Bridge first, `--allow-warnings` as needed).
 6. `./build-xcframework.sh`, create a GitHub **pre-release** for the tag and
    attach the zip.
-7. `scripts/check-release.sh post` — trunk, CDN and a CocoaPods consumer build
+7. `scripts/check-release.sh post` — spec repo and a CocoaPods consumer build
    against the special pod; SPM is skipped.
 
 The special branch is never merged back to `main`. A later public release that
