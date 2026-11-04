@@ -266,14 +266,29 @@ osv-scanner scan source -L Package.resolved
 
 - **Report the result to the release owner whether or not anything is found**
   (report "0 findings" too).
-- If anything is found, at any severity, **stop**: list each finding's package,
+- If anything **not in the decision log below** is found, at any severity, **stop**: list each finding's package,
   version, CVSS / severity, fixed version and OSV link, plus whether our usage can
   reach it and the evidence (read the code — not from memory), and discuss it with
   the release owner.
 - The release owner decides to **waive** it (reason goes into the execution
   summary) or **fix it before releasing**. The executor never waives on their own.
+- **Record the release owner's answer in the decision log below right away** (date,
+  advisory ID, package and version, decision, reason) and commit it with the release.
+- When a later scan reports **an advisory ID already in the log** and the premise of
+  its reason still holds (same usage; still not linked / still not calling the
+  affected code / the fixed version still cannot be adopted), apply the logged
+  decision without asking again and write "waived per decision log <date>" in the
+  execution summary. If the premise no longer holds, or the advisory is not in the
+  log, stop and discuss as above.
 
 Tool: `brew install osv-scanner` (OSV database; the same tool on every platform).
+
+**Decision log** (append only: when a decision is withdrawn, add a new row saying so;
+never edit an old row):
+
+| Date | Advisory | Package / version | Decision | Reason |
+|---|---|---|---|---|
+| (none yet) | | | | |
 
 ## 5. Documentation alignment gate (hard gate)
 
