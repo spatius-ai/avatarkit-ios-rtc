@@ -22,7 +22,7 @@
 # so the same script compiles against the special SDK with no extra input.
 #
 # Output: dist/<Module>.xcframework  (ios-arm64 device + ios-arm64 simulator)
-#         dist/AvatarKitRTC-<version>-xcframeworks.zip  (both + DEPENDENCIES.txt)
+#         dist/AvatarKitRTC-<version>-xcframeworks.zip  (both + DEPENDENCIES.txt + LICENSE)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -61,6 +61,7 @@ echo "==> Package   : $PKG"
 STAGE="$(dirname "$WORK")/pkg"
 rm -rf "$STAGE"; mkdir -p "$STAGE"
 cp -R "$PKG/." "$STAGE/"
+cp "$ROOT/LICENSE" "$STAGE/LICENSE"
 sed -i '' 's|"AvatarKitRTC/Sources/|"Sources/|g' "$STAGE/AvatarKitRTC.podspec" "$STAGE/AvatarKitAgoraBridge.podspec"
 
 # ---------------------------------------------------------------------------
@@ -123,6 +124,7 @@ for module in "${MODULES[@]}"; do
   echo "==> Packaging $module.xcframework"
   xcodebuild -create-xcframework -framework "$dev" -framework "$sim" \
     -output "$OUT/$module.xcframework" >/dev/null
+  cp "$ROOT/LICENSE" "$OUT/$module.xcframework/LICENSE"
 done
 
 # 4. Zip both with a note of what the integrator must supply.
@@ -135,8 +137,9 @@ Static frameworks; nothing third-party is embedded. The app must also link:
   - SwiftProtobuf $PROTOBUF_VERSION
 Deployment target iOS $MIN_IOS+, arm64 device and arm64 simulator.
 TXT
+cp "$ROOT/LICENSE" "$OUT/LICENSE"
 ZIP="$OUT/AvatarKitRTC-$VERSION-xcframeworks.zip"
-( cd "$OUT" && zip -qry "$(basename "$ZIP")" AvatarKitAgoraBridge.xcframework AvatarKitRTC.xcframework DEPENDENCIES.txt )
+( cd "$OUT" && zip -qry "$(basename "$ZIP")" AvatarKitAgoraBridge.xcframework AvatarKitRTC.xcframework DEPENDENCIES.txt LICENSE )
 
 echo "==> Done. Output in $OUT:"
 ls -d "$OUT"/*.xcframework "$ZIP"

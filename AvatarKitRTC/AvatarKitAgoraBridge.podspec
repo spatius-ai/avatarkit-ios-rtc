@@ -9,8 +9,8 @@ Pod::Spec.new do |spec|
                       DESC
   spec.homepage     = "https://github.com/spatius-ai/avatarkit-ios-rtc"
   spec.license      = {
-    :type => "Commercial",
-    :text => "Copyright © 2026 Spatius. All rights reserved. Use is subject to the Spatius commercial license agreement."
+    :type => "Proprietary",
+    :file => "LICENSE"
   }
   spec.author       = { "Spatius" => "hello@spatialwalk.net" }
   spec.platform     = :ios, "13.0"

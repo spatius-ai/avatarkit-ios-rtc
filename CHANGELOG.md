@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Ship the SDK license approved by legal under SPATIALWALK PTE. LTD., referencing the Spatius Terms of Service. Third-party components retain their own license terms.
+
 ## [1.2.0-agora-special.4.5.2.191.BASIC-compat-ios13] — 2026-11-02
 
 The Agora special build `1.2.0-agora-special.4.5.2.191.BASIC` for apps whose

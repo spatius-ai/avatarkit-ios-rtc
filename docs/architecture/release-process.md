@@ -102,6 +102,60 @@ and the bridge is pushed first (§6).
    and the `avatarkit-ios-release` tag exists.
 5. The target version is not on trunk yet (checked by `check-release.sh pre`).
 
+### SDK license and third-party notices
+
+**每次发布必做，适用于 GA、beta、rc 和 compat。** 在最终产物构建完成后、发布前执行；产物重新构建或许可文件发生变化后，重新执行本项。许可缺失、正文不一致、元数据错误或第三方声明未核清时，本项不得标为通过，也不得继续发布。
+
+#### 1. 核对法务文本和版权主体
+
+在本 SDK 仓库根目录执行：
+
+```bash
+python3 - <<'PYLICENSE'
+from pathlib import Path
+import hashlib
+content = Path('LICENSE').read_bytes()
+actual = hashlib.sha256(content).hexdigest()
+expected = '092cc32970c36609b1f6a60812afe1f708590fe0ef083b910f3a2bd58062dfe7'
+assert actual == expected, f'LICENSE differs from approved text: {actual}'
+print('LICENSE PASS: SPATIALWALK PTE. LTD.; SHA-256=' + actual)
+PYLICENSE
+```
+
+该摘要对应 2026-11-15 采用的法务全文（UTF-8、LF 换行），ToS 地址为 `https://www.spatius.ai/terms-of-service/`。以后正式更新许可文本时，七个 SDK 的正文和本项基准一起同步；不能为了让检查通过而单独改摘要。不同端的包元数据格式可以不同，许可正文必须相同。
+
+#### 2. 核对元数据和最终交付包
+
+- 两个 podspec 均声明 `Proprietary`、`:file => "LICENSE"`，从本次 tag 的源代码归档核对仓库根目录 LICENSE，与本地正文一致。
+- `build-xcframework.sh` 的 CocoaPods 暂存目录也必须带 LICENSE。离线交付渠道发布时，对最终 ZIP 的三份许可做比较；本次不提供离线产物时，明确记录该渠道不适用：
+
+```bash
+python3 - /实际路径/release.zip <<'PYARTIFACT'
+from pathlib import Path
+import sys, zipfile
+expected = Path('LICENSE').read_bytes()
+with zipfile.ZipFile(sys.argv[1]) as package:
+    for name in ['LICENSE', 'AvatarKitRTC.xcframework/LICENSE', 'AvatarKitAgoraBridge.xcframework/LICENSE']:
+        assert package.read(name) == expected, name
+        print('ZIP LICENSE PASS:', name)
+PYARTIFACT
+```
+
+将示例路径换成本次实际交付 ZIP 的路径。
+
+#### 3. 核对第三方声明
+
+- 按本次版本的运行依赖、内嵌库和实际链接结果核对组件，区分随包分发、宿主另行引入、系统提供及仅构建/测试使用的依赖。
+- 核对需要随包提供的许可和版权声明是否实际进入交付包（如 `THIRD_PARTY_NOTICES`、组件自带的 LICENSE/NOTICE）。逐项记录组件版本、声明文件所在位置；不能用我们的专有 LICENSE 替代第三方文本。
+- 不把依赖清单、漏洞扫描通过或锁文件中出现的包，直接当成第三方声明检查已完成。缺失项须补齐后重新检查。
+
+#### 4. 记录结果并复核发布版本
+
+在下方“发布前执行结果清单”的许可检查行给出：SDK 版本、渠道、产物路径及 SHA-256、LICENSE 摘要、实际元数据值、包内许可路径和比较结果、第三方声明位置及核对结论。只写“已检查”不算通过。产物 SHA-256 可用 `shasum -a 256 <产物路径>` 获取。
+
+发布后，从实际渠道重新下载本次版本，复核包内 LICENSE 和渠道许可元数据，记录结论。检查失败须报告具体差异，不覆盖旧版本来修复。特供线无需上传平台报告的既有约定不变，结果记录在本次发版执行清单中。
+
+
 ## 4. Local verification
 
 > **Do not use bare `swift build` / `swift test`.** They target macOS and Agora
@@ -266,6 +320,7 @@ List the **actual values and output** of this release, not "done":
 
 | Row | What to report |
 |-----|----------------|
+| SDK 许可与第三方声明 | 本文 SDK license and third-party notices 四步检查结果：版本/渠道、产物及 SHA-256、正文摘要、实际元数据、包内许可路径及比较结果、第三方声明核对结论 |
 | Versions and dependencies | Paste the `scripts/check-release.sh pre` version section |
 | Unit tests | `scripts/run-unit-tests.sh` and its `executed=<n> failed=<n>` line |
 | MOCK | The report's `Result` line, `RTC SDK` / `Main SDK` lines and `Device` line |
@@ -286,7 +341,7 @@ List the **actual values and output** of this release, not "done":
 
 `build-xcframework.sh` (repo root) produces `AvatarKitRTC.xcframework` +
 `AvatarKitAgoraBridge.xcframework` and `AvatarKitRTC-<version>-xcframeworks.zip`
-(both plus `DEPENDENCIES.txt`) in `dist/` (gitignored):
+(both plus `DEPENDENCIES.txt` and `LICENSE`) in `dist/` (gitignored):
 
 ```bash
 ./build-xcframework.sh
@@ -310,6 +365,8 @@ Attach the zip to the GitHub Release of the tag.
 > prefix in the podspecs breaks this script.
 
 ## 7. Post-release
+
+**许可复核（必须）**：从实际发布渠道下载本次版本，按前文许可检查流程复核包内 LICENSE 和渠道元数据，记录实际结果；不能仅复用本地检查结论。
 
 ```bash
 scripts/check-release.sh post
