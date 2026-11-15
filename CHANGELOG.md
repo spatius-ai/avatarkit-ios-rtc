@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Ship the SDK license approved by legal under SPATIALWALK PTE. LTD., referencing the Spatius Terms of Service. Third-party components retain their own license terms.
+
 ## [1.2.0] — 2026-10-20
 
 ### Added
