@@ -10,6 +10,13 @@ counts were the main source of drift. The catalog in §2 is the list, and
 
 ## 1. Unit tests
 
+Microphone publication fault injection covers capture failure, publication failure,
+rollback failure and successful retry. The internal transaction is called by the
+real Agora provider; its tests inject native return codes without opening a microphone.
+Demo permission cancellation uses request generations; OS permission dialogs are not
+exercised by these unit tests.
+
+
 | | |
 |---|---|
 | Command | `scripts/run-unit-tests.sh` — prints `executed=<n> failed=<n>`; that output is authoritative |

@@ -263,6 +263,9 @@ final class RTCTestViewModel: ObservableObject {
     @Published var connectionStateText = "Disconnected"
     @Published var connectionStateColor: Color = .gray
     @Published var isMicPublished = false
+    private var micRequestGeneration = 0
+    private var micPermissionPending = false
+    private var connectionRequestGeneration = 0
 
     @Published var statsFPS: String = "-"
     @Published var statsTotalFrames: Int = 0
@@ -362,6 +365,8 @@ final class RTCTestViewModel: ObservableObject {
             return
         }
 
+        connectionRequestGeneration += 1
+        let connectionRequest = connectionRequestGeneration
         isConnecting = true
         defer { isConnecting = false }
         lastError = ""
@@ -371,11 +376,13 @@ final class RTCTestViewModel: ObservableObject {
         // Pre-request mic permission so Agora doesn't fail silently. Agora's
         // mic publish path needs the OS prompt to be answered before join.
         let micGranted = await requestMicPermission()
+        guard connectionRequest == connectionRequestGeneration else { return }
         if !micGranted {
             lastError = "Microphone permission denied — open Settings → Avatar → Microphone"
         }
 
-        guard await autoFetchAgoraIfEnabled(avatarID: id) else { return }
+        guard await autoFetchAgoraIfEnabled(avatarID: id),
+              connectionRequest == connectionRequestGeneration else { return }
 
         let trimmedAgoraApp = agoraAppID.trimmingCharacters(in: .whitespaces)
         let trimmedChannel  = agoraChannel.trimmingCharacters(in: .whitespaces)
@@ -535,6 +542,9 @@ final class RTCTestViewModel: ObservableObject {
     /// Route B teardown: player detaches (observer off), then the host leaves
     /// and destroys its own engine.
     func disconnectExternalEngine() async {
+        connectionRequestGeneration += 1
+        micRequestGeneration += 1
+        micPermissionPending = false
         if let player { await player.detach() }
         if let engine = externalEngine {
             engine.leaveChannel(nil)
@@ -553,6 +563,11 @@ final class RTCTestViewModel: ObservableObject {
     }
 
     func toggleMic() async {
+        if micPermissionPending {
+            micRequestGeneration += 1
+            micPermissionPending = false
+            return
+        }
         guard let player else { return }
         do {
             if isMicPublished {
@@ -560,7 +575,12 @@ final class RTCTestViewModel: ObservableObject {
                 isMicPublished = false
                 print("[RTCTest] mic unpublished")
             } else {
+                micRequestGeneration += 1
+                let request = micRequestGeneration
+                micPermissionPending = true
                 let granted = await requestMicPermission()
+                guard request == micRequestGeneration, self.player === player, isConnected else { return }
+                micPermissionPending = false
                 if !granted {
                     lastError = "Microphone permission denied"
                     return
@@ -590,6 +610,9 @@ final class RTCTestViewModel: ObservableObject {
     }
 
     func disconnect() async {
+        connectionRequestGeneration += 1
+        micRequestGeneration += 1
+        micPermissionPending = false
         if let player {
             await player.disconnect()
         }
