@@ -1,12 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.0-agora-special.4.5.3.3.BASIC-compat-ios13] - 2026-11-18
 
 ### Changed
 
 - Allow `AgoraRtcEngine_Special_iOS` 4.5.x (`~> 4.5.0.BASIC`) instead of an exact pin. Integrators choose and validate their Agora version; 4.5.3.3.BASIC remains our tested baseline.
 
-- Upgrade the customer Agora dependency to `AgoraRtcEngine_Special_iOS 4.5.3.3.BASIC`; no bridge API or integration-code change is required.
+- Validate the new Agora baseline `4.5.3.3.BASIC`; no bridge API or integration-code change is required.
 - Use `SpatiusAvatarKit 1.3.9-compat-ios13`, retaining the iOS 13 deployment target and iOS 16 API availability requirement.
 
 - Ship the SDK license approved by legal under SPATIALWALK PTE. LTD., referencing the Spatius Terms of Service. Third-party components retain their own license terms.

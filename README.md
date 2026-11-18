@@ -1,7 +1,5 @@
 # AvatarKitRTC iOS SDK
 
-> **Unreleased candidate.** The versions below are prepared locally, not yet published.
->
 > **Agora special build for iOS 13 deployment targets — `1.2.0-agora-special.4.5.3.3.BASIC-compat-ios13`.**
 > This branch is AvatarKitRTC 1.2.0 built against Agora's customer SDK
 > **`AgoraRtcEngine_Special_iOS 4.5.3.3.BASIC`** instead of the public
@@ -13,7 +11,7 @@
 > - **CocoaPods only:** `pod 'AvatarKitRTC', '1.2.0-agora-special.4.5.3.3.BASIC-compat-ios13'` (pulls
 >   `AgoraRtcEngine_Special_iOS ~> 4.5.0.BASIC` and `SpatiusAvatarKit 1.3.9-compat-ios13`). Do not also add
 >   `AgoraRtcEngine_iOS` — two Agora SDKs in one app conflict.
-> - **Offline:** `AvatarKitRTC-1.2.0-agora-special.4.5.3.3.BASIC-compat-ios13-xcframeworks.zip` will be attached to the release when published.
+> - **Offline:** `AvatarKitRTC-1.2.0-agora-special.4.5.3.3.BASIC-compat-ios13-xcframeworks.zip` is attached to this version’s GitHub Release.
 > - **Not SPM:** Agora ships no special SDK over SPM. The SPM instructions below
 >   (and `Package.swift`) are the public build's.
 
@@ -21,7 +19,18 @@ RTC adapter for [AvatarKit](https://github.com/spatius-ai/avatarkit-ios-release)
 
 ## Installation
 
-Swift Package Manager:
+### CocoaPods (this special build)
+
+```ruby
+source 'https://github.com/spatius-ai/avatarkit-specs.git'
+source 'https://cdn.cocoapods.org/'
+pod 'AvatarKitRTC', '1.2.0-agora-special.4.5.3.3.BASIC-compat-ios13'
+```
+
+### Public SPM reference (not this special build)
+
+The following refers to the public release, not the Agora special SDK:
+
 
 ```swift
 dependencies: [
