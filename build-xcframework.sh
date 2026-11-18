@@ -89,3 +89,61 @@ cat > "$WORK/Podfile" <<RUBY
 source 'https://github.com/spatius-ai/avatarkit-specs.git'
 source 'https://cdn.cocoapods.org/'
 platform :ios, '$MIN_IOS'
+install! 'cocoapods', :warn_for_unused_master_specs_repo => false
+target 'Pack' do
+  use_frameworks! :linkage => :static
+  pod 'AvatarKitAgoraBridge', :path => '$STAGE'
+  pod 'AvatarKitRTC',         :path => '$STAGE'
+end
+post_install do |i|
+  i.pods_project.targets.each { |t| t.build_configurations.each { |c| c.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'x86_64' } }
+end
+RUBY
+
+( cd "$WORK" && xcodegen generate >/dev/null && pod install >/dev/null )
+
+# ---------------------------------------------------------------------------
+# 3. Build each pod scheme for device + simulator (Release, distribution),
+#    then create the xcframework from the two produced .framework bundles.
+# ---------------------------------------------------------------------------
+build() {   # $1 = scheme, $2 = sdk, $3 = destination, $4 = derivedData
+  ( cd "$WORK" && xcodebuild build \
+      -workspace Pack.xcworkspace -scheme "$1" \
+      -sdk "$2" -destination "$3" -configuration Release \
+      ARCHS=arm64 EXCLUDED_ARCHS=x86_64 \
+      BUILD_LIBRARY_FOR_DISTRIBUTION=YES CODE_SIGNING_ALLOWED=NO \
+      -derivedDataPath "$4" >/dev/null )
+}
+
+rm -rf "$OUT"; mkdir -p "$OUT"
+for module in "${MODULES[@]}"; do
+  echo "==> Building $module (device + simulator)"
+  build "$module" iphoneos        'generic/platform=iOS'           "$WORK/dd-dev"
+  build "$module" iphonesimulator 'generic/platform=iOS Simulator' "$WORK/dd-sim"
+
+  dev="$(find "$WORK/dd-dev/Build/Products" -name "$module.framework" -type d | grep -v XCFramework | head -1)"
+  sim="$(find "$WORK/dd-sim/Build/Products" -name "$module.framework" -type d | grep -v XCFramework | head -1)"
+  [ -n "$dev" ] && [ -n "$sim" ] || { echo "ERROR: $module.framework not produced" >&2; exit 1; }
+
+  echo "==> Packaging $module.xcframework"
+  xcodebuild -create-xcframework -framework "$dev" -framework "$sim" \
+    -output "$OUT/$module.xcframework" >/dev/null
+  cp "$ROOT/LICENSE" "$OUT/$module.xcframework/LICENSE"
+done
+
+# 4. Zip both with a note of what the integrator must supply.
+cat > "$OUT/DEPENDENCIES.txt" <<TXT
+AvatarKitRTC $VERSION — offline XCFrameworks (AvatarKitRTC + AvatarKitAgoraBridge)
+
+Static frameworks; nothing third-party is embedded. The app must also link:
+  - AvatarKit (main SDK) $AVATARKIT_VERSION (CocoaPods: SpatiusAvatarKit $AVATARKIT_VERSION)
+  - Agora: $AGORA_POD $AGORA_VERSION — allowed dependency requirement
+  - SwiftProtobuf $PROTOBUF_VERSION
+Deployment target iOS $MIN_IOS+, arm64 device and arm64 simulator.
+TXT
+cp "$ROOT/LICENSE" "$OUT/LICENSE"
+ZIP="$OUT/AvatarKitRTC-$VERSION-xcframeworks.zip"
+( cd "$OUT" && zip -qry "$(basename "$ZIP")" AvatarKitAgoraBridge.xcframework AvatarKitRTC.xcframework DEPENDENCIES.txt LICENSE )
+
+echo "==> Done. Output in $OUT:"
+ls -d "$OUT"/*.xcframework "$ZIP"
