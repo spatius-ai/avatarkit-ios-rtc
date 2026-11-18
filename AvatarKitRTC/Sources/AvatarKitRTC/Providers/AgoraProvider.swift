@@ -252,10 +252,11 @@ import AvatarKitAgoraBridge
 
     public override func publishAudioTrack() async throws {
         guard let kit = engine else { throw AgoraProviderError.notConnected }
-        kit.enableLocalAudio(true)
-        let opts = AgoraRtcChannelMediaOptions()
-        opts.publishMicrophoneTrack = true
-        kit.updateChannel(with: opts)
+        try startMicrophone(capture: kit.enableLocalAudio) { enabled in
+            let opts = AgoraRtcChannelMediaOptions()
+            opts.publishMicrophoneTrack = enabled
+            return kit.updateChannel(with: opts)
+        }
         hasPublishedAudio = true
     }
 

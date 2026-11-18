@@ -1,6 +1,10 @@
 # Changelog
 
 ## [Unreleased]
+### Fixed
+
+- Check Agora microphone capture and publication return codes, roll back capture when publishing fails, and allow retry. Demo permission requests are invalidated on stop or disconnect so late permission results cannot start a stale session.
+
 
 ### Changed
 
