@@ -526,3 +526,22 @@ customer confirms on their devices.
 - Telemetry → [`telemetry-fields.md`](telemetry-fields.md)
 - Tests → [`test-cases.md`](test-cases.md)
 - Version constant decision → [ADR-0001](../decisions/0001-telemetry-version-hand-written.md)
+
+### 2026-11-18 upgrade candidate (not published)
+
+`compat/ios13-agora-4.5.3.3.BASIC` keeps the 1.2.0 RTC implementation and changes
+only the dependency/version metadata to Agora Special 4.5.3.3.BASIC and
+SpatiusAvatarKit 1.3.9-compat-ios13. Do not override the old pod's exact pin in a
+customer Podfile: publish matching Bridge + RTC versions after the main SDK.
+
+Validation: existing ObjC++ bridge compiles unchanged for arm64 device/simulator
+with an iOS 13 target; 10/10 RTC unit tests pass with the new special SDK; a Swift 5
+CocoaPods host using the actual main XCFramework builds for device and simulator,
+and fails compilation as expected without the iOS 16 availability gate. All
+embedded device frameworks have minimum iOS <= 13. Simulator launch passed on
+iOS 17.5. On iPhone 12 Pro (iOS 26.6.1), connection + PCM/animation smoke passed
+5/5, observing 10 frames and then 26/5 frames across two additional PCM sessions.
+No claim is made about launch on an actual iOS 13–15 device; that remains a
+customer-device check. SwiftProtobuf duplicate Objective-C class warnings are
+visible with the self-contained main binary plus RTC's Protobuf dependency; the
+checks above passed, but this validation does not claim those warnings are fixed.
