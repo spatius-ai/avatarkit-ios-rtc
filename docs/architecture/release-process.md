@@ -531,8 +531,11 @@ customer confirms on their devices.
 
 `compat/ios13-agora-4.5.3.3.BASIC` keeps the 1.2.0 RTC implementation and changes
 only the dependency/version metadata to Agora Special 4.5.3.3.BASIC and
-SpatiusAvatarKit 1.3.9-compat-ios13. Do not override the old pod's exact pin in a
-customer Podfile: publish matching Bridge + RTC versions after the main SDK.
+SpatiusAvatarKit 1.3.9-compat-ios13. The candidate now allows `~> 4.5.0.BASIC` in both pods (4.5.x including
+special prerelease versions, excluding 4.6). The version suffix records the
+tested baseline, not an exact Agora constraint. The customer owns compatibility
+validation for their selected Agora build. Publish matching Bridge + RTC versions
+after the main SDK; the old published pods retain their original exact constraints.
 
 Validation: existing ObjC++ bridge compiles unchanged for arm64 device/simulator
 with an iOS 13 target; 10/10 RTC unit tests pass with the new special SDK; a Swift 5

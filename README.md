@@ -11,7 +11,7 @@
 > [`v1.2.0`](https://github.com/spatius-ai/avatarkit-ios-rtc/tree/v1.2.0).
 >
 > - **CocoaPods only:** `pod 'AvatarKitRTC', '1.2.0-agora-special.4.5.3.3.BASIC-compat-ios13'` (pulls
->   `AgoraRtcEngine_Special_iOS 4.5.3.3.BASIC` and `SpatiusAvatarKit 1.3.9-compat-ios13`). Do not also add
+>   `AgoraRtcEngine_Special_iOS ~> 4.5.0.BASIC` and `SpatiusAvatarKit 1.3.9-compat-ios13`). Do not also add
 >   `AgoraRtcEngine_iOS` — two Agora SDKs in one app conflict.
 > - **Offline:** `AvatarKitRTC-1.2.0-agora-special.4.5.3.3.BASIC-compat-ios13-xcframeworks.zip` will be attached to the release when published.
 > - **Not SPM:** Agora ships no special SDK over SPM. The SPM instructions below
@@ -36,9 +36,10 @@ dependencies: [
   the app links and launches, but AvatarKitRTC must not be used.
 - arm64
 - `AvatarKit` 1.3.9-compat-ios13
-- `AgoraRtcEngine_Special_iOS` 4.5.3.3.BASIC exactly for this branch. The public
-  Agora 4.5.3 regression does not apply to this tested special build. Do not mix
-  the special and public Agora pods.
+- `AgoraRtcEngine_Special_iOS` `~> 4.5.0.BASIC` (4.5.x, including special prerelease builds; excludes 4.6).
+  4.5.3.3.BASIC is the tested baseline named in this package version, not an exact dependency pin.
+  The integrator selects the Agora version and owns its compatibility validation.
+  Do not mix the special and public Agora pods.
 
 ## Documentation
 

@@ -98,8 +98,8 @@ echo "AvatarKitRTC release check — $mode — version $version"
 echo
 
 # Agora special build (release-process.md §9): a version
-# `<base>-agora-special.<special version>` pins the podspecs to
-# AgoraRtcEngine_Special_iOS <special version>. SPM has no special-SDK
+# `<base>-agora-special.<special version>` identifies the tested baseline.
+# This branch allows the customer special SDK 4.5.x line. SPM has no special-SDK
 # distribution, so Package.swift and the README SPM snippet keep the public
 # pin / base version on such a branch, and post skips the SPM checks.
 base_version="$version"
@@ -112,12 +112,12 @@ fi
 if [[ "${version%-compat-ios13}" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-agora-special\.(.+)$ ]]; then
     base_version="${BASH_REMATCH[1]}"
     special_agora="${BASH_REMATCH[2]}"
-    echo "Agora special build: podspecs must pin AgoraRtcEngine_Special_iOS $special_agora (base version $base_version)"
+    echo "Agora special build: tested baseline $special_agora; allowed dependency ~> 4.5.0.BASIC (base version $base_version)"
     echo
 fi
 if [[ -n "$special_agora" ]]; then
     podspec_agora_pod="AgoraRtcEngine_Special_iOS"
-    podspec_agora_version="$special_agora"
+    podspec_agora_version="~> 4.5.0.BASIC"
 else
     podspec_agora_pod="AgoraRtcEngine_iOS"
     podspec_agora_version="$PINNED_AGORA"
@@ -174,7 +174,7 @@ VERSION_LOCATIONS = [
     ("podagora", "AvatarKitRTC/AvatarKitAgoraBridge.podspec", "dependency Agora pod",
      r'^\s*spec\.dependency\s+"(AgoraRtcEngine[A-Za-z_]*)",\s*"([^"]+)"'),
     ("podagora", "README.md", "Requirements Agora pod",
-     r'^- `(AgoraRtcEngine[A-Za-z_]*)` (\S+) exactly'),
+     r'^- `(AgoraRtcEngine[A-Za-z_]*)` `([^`]+)`'),
     ("ios", "Package.swift", "platforms",
      r'platforms:\s*\[\.iOS\(\.v(\d+)\)\]'),
     ("ios", "AvatarKitRTC/AvatarKitRTC.podspec", "spec.platform",

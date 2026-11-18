@@ -50,7 +50,7 @@ Pod::Spec.new do |spec|
   # package. Its module_name is still AvatarKit, so imports are unaffected.
   spec.dependency "SpatiusAvatarKit", "1.3.9-compat-ios13"
   spec.dependency "SwiftProtobuf", "1.30.0"
-  # Customer-specific BASIC build; verified on device. Do not substitute the
-  # public 4.5.3 build mentioned in Package.swift.
-  spec.dependency "AgoraRtcEngine_Special_iOS", "4.5.3.3.BASIC"
+  # Allow the customer special SDK 4.5.x line, including prerelease versions.
+  # 4.5.3.3.BASIC is the tested baseline; the integrator selects the resolved version.
+  spec.dependency "AgoraRtcEngine_Special_iOS", "~> 4.5.0.BASIC"
 end

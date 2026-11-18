@@ -133,7 +133,7 @@ AvatarKitRTC $VERSION — offline XCFrameworks (AvatarKitRTC + AvatarKitAgoraBri
 
 Static frameworks; nothing third-party is embedded. The app must also link:
   - AvatarKit (main SDK) $AVATARKIT_VERSION (CocoaPods: SpatiusAvatarKit $AVATARKIT_VERSION)
-  - Agora: $AGORA_POD $AGORA_VERSION — exactly this pod and version
+  - Agora: $AGORA_POD $AGORA_VERSION — allowed dependency requirement
   - SwiftProtobuf $PROTOBUF_VERSION
 Deployment target iOS $MIN_IOS+, arm64 device and arm64 simulator.
 TXT

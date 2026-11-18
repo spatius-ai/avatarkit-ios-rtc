@@ -21,9 +21,9 @@ Pod::Spec.new do |spec|
   spec.source_files        = "AvatarKitRTC/Sources/AvatarKitAgoraBridge/**/*.{h,mm}"
   spec.public_header_files  = "AvatarKitRTC/Sources/AvatarKitAgoraBridge/include/*.h"
   spec.requires_arc         = true
-  # Customer-specific BASIC build; verified on device. Do not substitute the
-  # public 4.5.3 build mentioned in Package.swift.
-  spec.dependency "AgoraRtcEngine_Special_iOS", "4.5.3.3.BASIC"
+  # Allow the customer special SDK 4.5.x line, including prerelease versions.
+  # 4.5.3.3.BASIC is the tested baseline; the integrator selects the resolved version.
+  spec.dependency "AgoraRtcEngine_Special_iOS", "~> 4.5.0.BASIC"
   spec.pod_target_xcconfig  = {
     "CLANG_CXX_LANGUAGE_STANDARD" => "c++17",
     "CLANG_CXX_LIBRARY"           => "libc++"
