@@ -580,8 +580,9 @@ customer confirms on their devices.
 `compat/ios13-agora-4.5.3.3.BASIC` keeps the 1.2.0 RTC implementation and changes
 only the dependency/version metadata to Agora Special 4.5.3.3.BASIC and
 SpatiusAvatarKit 1.3.9-compat-ios13. This release allows `~> 4.5.0.BASIC` in both pods (4.5.x including
-special prerelease versions, excluding 4.6). The version suffix records the
-tested baseline, not an exact Agora constraint. The customer owns compatibility
+special prerelease versions, excluding 4.6). The current version is
+`1.2.0-agora-special-compat-ios13`; it does not encode the Agora build and does
+not introduce a beta suffix. The tested baseline remains `4.5.3.3.BASIC`. The customer owns compatibility
 validation for their selected Agora build. Publish matching Bridge + RTC versions
 after the main SDK; the old published pods retain their original exact constraints.
 
@@ -598,3 +599,9 @@ visible with the self-contained main binary plus RTC's Protobuf dependency; the
 checks above passed, but this validation does not claim those warnings are fixed.
 
 Release report evidence: RTC Mock 44/44 on iPhone13,3 / iOS 26.6.1, user-exported Copy Report timestamp 2026-11-18T14:26:23Z; case IDs match the complete source catalog. Main integration coverage is 88/88 (full run plus baked-asset rerun); performance has 10 measured rounds. Render metrics match public 1.3.9, including its existing ultra WATCH for aed008e4-8ddf-41aa-b5b2-5d7321dd4165. Reports are retained locally, not uploaded, per the release owner.
+
+For this range-based special build, use `AGORA_BUILD_VERSION=4.5.3.3.BASIC ./build-xcframework.sh`
+and `AGORA_TEST_VERSION=4.5.3.3.BASIC scripts/check-release.sh post` to select the
+validated host dependency without changing the published SDK requirement.
+Without a host selection, CocoaPods currently resolves 4.5.3.134; that build
+links on device but its arm64 simulator binary targets iOS and fails simulator linking.

@@ -94,6 +94,7 @@ target 'Pack' do
   use_frameworks! :linkage => :static
   pod 'AvatarKitAgoraBridge', :path => '$STAGE'
   pod 'AvatarKitRTC',         :path => '$STAGE'
+${AGORA_BUILD_VERSION:+  pod '$AGORA_POD', '$AGORA_BUILD_VERSION'}
 end
 post_install do |i|
   i.pods_project.targets.each { |t| t.build_configurations.each { |c| c.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'x86_64' } }
@@ -139,6 +140,7 @@ Static frameworks; nothing third-party is embedded. The app must also link:
   - AvatarKit (main SDK) $AVATARKIT_VERSION (CocoaPods: SpatiusAvatarKit $AVATARKIT_VERSION)
   - Agora: $AGORA_POD $AGORA_VERSION — allowed dependency requirement
   - SwiftProtobuf $PROTOBUF_VERSION
+Build-selected Agora version: ${AGORA_BUILD_VERSION:-resolved from Podfile.lock}
 Deployment target iOS $MIN_IOS+, arm64 device and arm64 simulator.
 TXT
 cp "$ROOT/LICENSE" "$OUT/LICENSE"

@@ -101,7 +101,8 @@ echo "AvatarKitRTC release check — $mode — version $version"
 echo
 
 # Agora special build (release-process.md §9): a version
-# `<base>-agora-special.<special version>` identifies the tested baseline.
+# `<base>-agora-special` identifies the special SDK line; legacy versions may
+# include an Agora version. The tested baseline is documented independently.
 # This branch allows the customer special SDK 4.5.x line. SPM has no special-SDK
 # distribution, so Package.swift and the README SPM snippet keep the public
 # pin / base version on such a branch, and post skips the SPM checks.
@@ -112,9 +113,9 @@ special_agora=""
 if [[ "$version" == *-compat-ios13 ]]; then
     MIN_IOS="13.0"
 fi
-if [[ "${version%-compat-ios13}" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-agora-special\.(.+)$ ]]; then
+if [[ "${version%-compat-ios13}" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-agora-special(\.(.+))?$ ]]; then
     base_version="${BASH_REMATCH[1]}"
-    special_agora="${BASH_REMATCH[2]}"
+    special_agora="${BASH_REMATCH[3]:-4.5.3.3.BASIC}"
     echo "Agora special build: tested baseline $special_agora; allowed dependency ~> 4.5.0.BASIC (base version $base_version)"
     echo
 fi
@@ -607,6 +608,7 @@ platform :ios, '16.0'
 target 'RTCPodConsumer' do
   use_frameworks! :linkage => :static
   pod 'AvatarKitRTC', '$version'
+${AGORA_TEST_VERSION:+  pod 'AgoraRtcEngine_Special_iOS', '$AGORA_TEST_VERSION'}
 end
 PODFILE
         if (cd "$pod_dir" && xcodegen generate >/dev/null 2>&1 \

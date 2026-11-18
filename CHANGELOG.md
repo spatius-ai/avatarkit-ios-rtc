@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.2.0-agora-special.4.5.3.3.BASIC-compat-ios13] - 2026-11-18
+## [1.2.0-agora-special-compat-ios13] - 2026-11-18
 
 ### Changed
 
