@@ -25,7 +25,11 @@ RTC adapter for [AvatarKit](https://github.com/spatius-ai/avatarkit-ios-release)
 source 'https://github.com/spatius-ai/avatarkit-specs.git'
 source 'https://cdn.cocoapods.org/'
 pod 'AvatarKitRTC', '1.2.0-agora-special.4.5.3.3.BASIC-compat-ios13'
+# Select the Agora version validated for your app; our tested baseline:
+pod 'AgoraRtcEngine_Special_iOS', '4.5.3.3.BASIC'
 ```
+
+The SDK dependency remains `~> 4.5.0.BASIC`; the explicit Agora version above is a host-app choice. Without it, a fresh install currently selects 4.5.3.134, whose arm64 simulator binary fails to link as an iOS Simulator target (device build passes). Select and validate your Agora version explicitly when using a simulator.
 
 ### Public SPM reference (not this special build)
 
