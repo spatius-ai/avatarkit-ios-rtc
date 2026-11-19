@@ -249,3 +249,9 @@ not in the MOCK catalog. Two of them do less than their names say:
 - Docs map → [`docs-map.md`](docs-map.md)
 - Architecture → [`overview.md`](overview.md)
 - Release → [`release-process.md`](release-process.md)
+
+## Whole-round handoff tests
+
+Conversation-state unit tests also cover sequence sorting and deduplication,
+retention of inferred frames skipped for playback, handoff before end generation,
+and exactly-once handoff on disconnect without sequence numbers.

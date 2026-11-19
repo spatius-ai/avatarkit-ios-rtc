@@ -734,6 +734,13 @@ public enum AvatarPlayerError: LocalizedError {
         self.view = view
     }
 
+    func addSpeakingRound(_ frames: [Data]) {
+        // Optional selector matches Web's optional API and preserves older host SDK compatibility.
+        let selector = NSSelectorFromString("addSpeakingRound:")
+        guard let view, view.responds(to: selector) else { return }
+        view.perform(selector, with: frames as NSArray)
+    }
+
     func renderFromProtobuf(_ data: Data) {
         do {
             try view?.renderFromProtobufSync(data)
