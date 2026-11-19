@@ -336,3 +336,12 @@ Intel Mac simulators, which the main SDK does not support anyway.
 - Release → [`release-process.md`](release-process.md)
 - Host SDK → `ios-sdk/docs/architecture/overview.md`
 - Cross-platform counterpart → `avatarkit-android-rtc/docs/architecture/overview.md`
+
+## Whole-round end-transition handoff
+
+AnimationHandler retains inferred protobuf frames by sequence, before jitter-buffer
+or late-frame dropping. It submits them once, sorted and deduplicated, before end
+transition generation, on bare idle, or on dispose. Generated transitions are never
+collected. The view adapter calls the optional core `addSpeakingRound` API (cached
+reflection on Android, Objective-C selector on iOS), preserving compatibility with
+older main SDKs that continue to use interpolation. No dependency version is bumped.

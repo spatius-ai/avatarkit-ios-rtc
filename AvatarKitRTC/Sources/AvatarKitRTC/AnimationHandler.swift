@@ -17,9 +17,16 @@ import Foundation
     func renderFromProtobuf(_ data: Data)
     func renderFrame(_ frame: Frame?, startIdle: Bool)
     func generateTransitionToFrame(_ data: Data, frameCount: Int) -> [Frame]
+    func addSpeakingRound(_ frames: [Data])
     func generateTransitionToIdle(frameCount: Int) -> [Frame]
     func isReady() -> Bool
 }
+
+@available(iOS 16.0, *)
+extension AvatarRendererAdapter {
+    func addSpeakingRound(_ frames: [Data]) {}
+}
+
 
 /// Configuration for AnimationHandler. Matches web's AnimationHandlerConfig.
 @available(iOS 16.0, *)
@@ -300,6 +307,15 @@ public struct AnimationSessionSummary: Sendable {
         self.config = config
     }
 
+    private var roundFrames: [Int: Data] = [:]
+
+    private func submitSpeakingRound() {
+        guard !roundFrames.isEmpty else { return }
+        let frames = roundFrames.keys.sorted().compactMap { roundFrames[$0] }
+        roundFrames.removeAll(keepingCapacity: true)
+        renderer.addSpeakingRound(frames)
+    }
+
     // MARK: - Public hooks (called by AvatarPlayer)
 
     /// Handle a streaming animation frame.
@@ -334,6 +350,8 @@ public struct AnimationSessionSummary: Sendable {
 
         // Ensure session-level watchdog/stats are running even if transition packet was lost.
         ensureSessionActive(frameSeq: frameSeq)
+        let roundKey = frameSeq ?? animationFrameCount
+        if roundFrames[roundKey] == nil { roundFrames[roundKey] = protobufData }
 
         // Kept trying until one is found rather than only inspecting the first
         // packet: the round may open with frames the server stamped nothing on,
@@ -531,6 +549,7 @@ public struct AnimationSessionSummary: Sendable {
         logger.info("Generating \(frames) transition frames to idle")
         isGeneratingEndTransition = true
 
+        submitSpeakingRound()
         let transitionFrames = renderer.generateTransitionToIdle(frameCount: frames)
         logger.info("Generated \(transitionFrames.count) transition frames")
         isPlayingTransition = true
@@ -547,6 +566,7 @@ public struct AnimationSessionSummary: Sendable {
 
     /// Switch to idle animation immediately. Reports conversation stats first.
     func startIdle() {
+        submitSpeakingRound()
         // Every route to idle lands here. A transition-end packet has already
         // recorded its reason; anything still unset arrived another way — the
         // watchdog giving up, or a bare idle packet with no end transition,
@@ -626,6 +646,7 @@ public struct AnimationSessionSummary: Sendable {
     }
 
     func dispose() {
+        submitSpeakingRound()
         stopTransition()
         stopWatchdog()
         // Reset the idle flag silently — a direct store, not setIdle(), so no

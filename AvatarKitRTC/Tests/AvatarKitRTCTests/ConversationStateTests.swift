@@ -14,6 +14,9 @@ final class ConversationStateTests: XCTestCase {
 
     /// Records renderer calls and hands back synthetic transition frames.
     private final class FakeRenderer: AvatarRendererAdapter {
+        var rounds: [[Data]] = []
+        var roundsAtEndGeneration = 0
+        func addSpeakingRound(_ frames: [Data]) { rounds.append(frames) }
         var protobufRenders = 0
         var frameRenders = 0
         var idleStarts = 0
@@ -27,7 +30,8 @@ final class ConversationStateTests: XCTestCase {
             Self.frames(frameCount)
         }
         func generateTransitionToIdle(frameCount: Int) -> [Frame] {
-            Self.frames(frameCount)
+            roundsAtEndGeneration = rounds.count
+            return Self.frames(frameCount)
         }
         func isReady() -> Bool { true }
 
@@ -185,5 +189,32 @@ final class ConversationStateTests: XCTestCase {
         handler.handleAnimationData(payload, frameSeq: 0, isRecovered: false)
 
         XCTAssertEqual(states, [.speaking, .idle, .speaking])
+    }
+    func testRoundHandoffSortsDeduplicatesAndIncludesUnrenderedFrames() {
+        makeHandler(jitterBuffer: false)
+        handler.handleAnimationData(Data([3]), frameSeq: 3, isRecovered: false)
+        handler.handleAnimationData(Data([1]), frameSeq: 1, isRecovered: false)
+        handler.handleAnimationData(Data([9]), frameSeq: 3, isRecovered: false)
+        handler.startIdle()
+        handler.startIdle()
+        XCTAssertEqual(renderer.rounds, [[Data([1]), Data([3])]])
+    }
+
+    func testRoundHandoffPrecedesEndGeneration() {
+        makeHandler(jitterBuffer: false)
+        handler.handleAnimationData(payload, frameSeq: 1, isRecovered: false)
+        handler.handleTransitionToIdle(payload, frameCount: 40)
+        XCTAssertEqual(renderer.roundsAtEndGeneration, 1)
+        handler.dispose()
+        XCTAssertEqual(renderer.rounds.count, 1)
+    }
+
+    func testDisconnectHandsOffUnsequencedRoundExactlyOnce() {
+        makeHandler(jitterBuffer: false)
+        handler.handleAnimationData(Data([1]), frameSeq: nil, isRecovered: false)
+        handler.handleAnimationData(Data([2]), frameSeq: nil, isRecovered: false)
+        handler.dispose()
+        handler.dispose()
+        XCTAssertEqual(renderer.rounds, [[Data([1]), Data([2])]])
     }
 }

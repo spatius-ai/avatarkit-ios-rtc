@@ -1,6 +1,11 @@
 # Changelog
 
 ## [Unreleased]
+
+### Improved
+
+- Hand off complete inferred speaking rounds to compatible main SDKs for Web-aligned neck, mouth and blink end transitions; older main SDKs keep interpolation.
+
 ### Fixed
 
 - Check Agora microphone capture and publication return codes, roll back capture when publishing fails, and allow retry. Demo permission requests are invalidated on stop or disconnect so late permission results cannot start a stale session.
