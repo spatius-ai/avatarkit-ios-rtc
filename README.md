@@ -1,17 +1,17 @@
 # AvatarKitRTC iOS SDK
 
-> **Agora special build for iOS 13 deployment targets — `1.2.0-agora-special-compat-ios13`.**
+> **Agora special build for iOS 13 deployment targets — `1.2.1-agora-special-compat-ios13`.**
 > This branch is AvatarKitRTC 1.2.0 built against Agora's customer SDK
 > **`AgoraRtcEngine_Special_iOS 4.5.3.3.BASIC`** instead of the public
 > `AgoraRtcEngine_iOS 4.5.2`, with a 13.0 deployment target and every API marked
-> iOS 16+ (see Requirements). It depends on AvatarKit `1.3.9-compat-ios13`. Apart
+> iOS 16+ (see Requirements). It depends on AvatarKit `1.3.10-compat-ios13`. Apart
 > from that, the code is identical to
 > [`v1.2.0`](https://github.com/spatius-ai/avatarkit-ios-rtc/tree/v1.2.0).
 >
-> - **CocoaPods only:** `pod 'AvatarKitRTC', '1.2.0-agora-special-compat-ios13'` (pulls
->   `AgoraRtcEngine_Special_iOS ~> 4.5.0.BASIC` and `SpatiusAvatarKit 1.3.9-compat-ios13`). Do not also add
+> - **CocoaPods only:** `pod 'AvatarKitRTC', '1.2.1-agora-special-compat-ios13'` (pulls
+>   `AgoraRtcEngine_Special_iOS ~> 4.5.0.BASIC` and `SpatiusAvatarKit 1.3.10-compat-ios13`). Do not also add
 >   `AgoraRtcEngine_iOS` — two Agora SDKs in one app conflict.
-> - **Offline:** `AvatarKitRTC-1.2.0-agora-special-compat-ios13-xcframeworks.zip` is attached to this version’s GitHub Release.
+> - **Offline:** `AvatarKitRTC-1.2.1-agora-special-compat-ios13-xcframeworks.zip` is attached to this version’s GitHub Release.
 > - **Not SPM:** Agora ships no special SDK over SPM. The SPM instructions below
 >   (and `Package.swift`) are the public build's.
 
@@ -24,7 +24,7 @@ RTC adapter for [AvatarKit](https://github.com/spatius-ai/avatarkit-ios-release)
 ```ruby
 source 'https://github.com/spatius-ai/avatarkit-specs.git'
 source 'https://cdn.cocoapods.org/'
-pod 'AvatarKitRTC', '1.2.0-agora-special-compat-ios13'
+pod 'AvatarKitRTC', '1.2.1-agora-special-compat-ios13'
 # Select the Agora version validated for your app; our tested baseline:
 pod 'AgoraRtcEngine_Special_iOS', '4.5.3.3.BASIC'
 ```
@@ -48,7 +48,7 @@ dependencies: [
   `@available(iOS 16.0, *)`: call it inside `if #available(iOS 16.0, *)`. On iOS 13–15
   the app links and launches, but AvatarKitRTC must not be used.
 - arm64
-- `AvatarKit` 1.3.9-compat-ios13
+- `AvatarKit` 1.3.10-compat-ios13
 - `AgoraRtcEngine_Special_iOS` `~> 4.5.0.BASIC` (4.5.x, including special prerelease builds; excludes 4.6).
   4.5.3.3.BASIC is the tested baseline, not an exact dependency pin.
   The integrator selects the Agora version and owns its compatibility validation.

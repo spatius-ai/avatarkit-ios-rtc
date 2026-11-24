@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.1-agora-special-compat-ios13] - 2026-11-25
+
+Pairs with SpatiusAvatarKit `1.3.10-compat-ios13`. Retains the iOS 13 deployment target and the Agora special SDK 4.5.x dependency range; 4.5.3.3.BASIC remains the tested baseline.
 
 ### Improved
 
