@@ -218,6 +218,12 @@ for group, path, label, value in values:
     if value is None:
         print(f"FAIL {name}: unreadable — pattern no longer matches; update scripts/check-release.sh")
         continue
+    if group == "rtc_base" and "-agora-special" in target:
+        # This explicitly labelled public-SPM example is not a distribution
+        # channel for the CocoaPods-only special line; its public version is
+        # independent of this special build's patch version.
+        print(f"INFO {name}: {value} (public SPM reference; not this special build)")
+        continue
     if group == "ios" and "." not in value:
         value += ".0"
     ref, why = ref_of(group)
