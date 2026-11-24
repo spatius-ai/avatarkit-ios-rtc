@@ -344,4 +344,5 @@ or late-frame dropping. It submits them once, sorted and deduplicated, before en
 transition generation, on bare idle, or on dispose. Generated transitions are never
 collected. The view adapter calls the optional core `addSpeakingRound` API (cached
 reflection on Android, Objective-C selector on iOS), preserving compatibility with
-older main SDKs that continue to use interpolation. No dependency version is bumped.
+older main SDK implementations that continue to use interpolation. This release pins
+AvatarKit 1.3.10 on both SPM and CocoaPods; hosts must align their main SDK version.

@@ -8,7 +8,7 @@ Swift Package Manager:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/spatius-ai/avatarkit-ios-rtc.git", from: "1.2.0")
+    .package(url: "https://github.com/spatius-ai/avatarkit-ios-rtc.git", from: "1.2.1")
 ]
 ```
 
@@ -16,7 +16,7 @@ dependencies: [
 
 - iOS 16.0+
 - arm64
-- `AvatarKit` 1.3.6
+- `AvatarKit` 1.3.10
 - `AgoraRtcEngine_iOS` 4.5.2 exactly — other versions are not supported: 4.6.x changed the
   encoded-frame callback, and 4.5.3 builds but delivers no avatar frames at runtime
 

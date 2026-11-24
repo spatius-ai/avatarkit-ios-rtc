@@ -270,7 +270,7 @@ final class TestRunner {
     /// (`TelemetryIdentity.sdkVersion`) is internal and SPM has no build-time
     /// substitution, so the demo mirrors it here; `scripts/check-release.sh`
     /// fails when the two disagree.
-    static let rtcSDKVersion = "1.2.0"
+    static let rtcSDKVersion = "1.2.1"
 
     /// Report text — same layout on web, Android and iOS (see
     /// `docs/architecture/test-cases.md` §2).

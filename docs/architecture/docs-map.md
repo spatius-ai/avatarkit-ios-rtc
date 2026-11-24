@@ -12,15 +12,12 @@ How this SDK works **right now**. Rewritten in place when the code changes.
 Aligning these files with code fact is a hard release gate
 ([`release-process.md`](release-process.md) §5).
 
-**Verification stamp (v1.2.0 release gate, 2026-10-20).** `release-process.md`,
-`test-cases.md` and this file were fully verified against code. In `overview.md`
-the parts whose code changed since v1.1.0 (conversation state) and every line
-reference were re-verified; `telemetry-fields.md` had no telemetry code change
-since v1.1.0 and its line references were re-verified. Their last full
-verification remains 2026-08-27 at v1.0.1 (version statements and the host SDK
-dependency re-verified 2026-10-19 at v1.1.0). `scripts/check-docs.sh` checks the
-mechanical part (catalog, line references, links, release-process sections, this
-map).
+**Verification stamp (v1.2.1 release gate, 2026-11-25).** Re-verified the
+changed whole-round handoff and microphone rollback behavior against the source
+and tests. Updated the overview's dependency statement to match the exact
+AvatarKit 1.3.10 pins. `Telemetry.swift` has no change since v1.2.0; the telemetry
+version is now 1.2.1. Version consistency and mechanical documentation checks
+pass. Unchanged architecture sections retain their prior verification history.
 
 | File | Purpose |
 |------|---------|

@@ -14,7 +14,7 @@ let package = Package(
     dependencies: [
         // AvatarKit binary distribution. Pinned exactly to keep SPM and the
         // CocoaPods podspec on the same main-SDK version.
-        .package(url: "https://github.com/spatius-ai/avatarkit-ios-release.git", exact: "1.3.6"),
+        .package(url: "https://github.com/spatius-ai/avatarkit-ios-release.git", exact: "1.3.10"),
         .package(url: "https://github.com/apple/swift-protobuf.git", exact: "1.30.0"),
         // Agora is pinned exactly, not to 4.5.x: with 4.5.3 the bridge compiles and the
         // encoded-frame interfaces it uses are unchanged in the headers, yet on a device the

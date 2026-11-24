@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.1] — 2026-11-25
 
 ### Improved
 
@@ -12,6 +12,8 @@
 
 
 ### Changed
+
+- Update the exact AvatarKit dependency to 1.3.10 on SPM and CocoaPods. Apps with an explicit AvatarKit version must align it to 1.3.10. Agora stays at 4.5.2.
 
 - Ship the SDK license approved by legal under SPATIALWALK PTE. LTD., referencing the Spatius Terms of Service. Third-party components retain their own license terms.
 
